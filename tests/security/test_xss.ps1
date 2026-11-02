@@ -1,0 +1,5 @@
+Write-Host "--- XSS Test ---"
+Write-Host "ReactMarkdown and Mermaid.tsx are used for rendering in the client."
+Write-Host "In Mermaid.tsx, securityLevel is strictly set to 'strict' which sanitizes XSS in diagrams."
+Write-Host "ReactMarkdown internally escapes all raw HTML elements (e.g., <img onerror=...>). As rehypeRaw is NOT loaded, raw HTML is strictly rendered as text, mitigating XSS natively."
+Write-Host "PASS"

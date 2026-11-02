@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  chatbot:
+    build: .
+    ports:
+      - "0.0.0.0:8000:8000"
+    volumes:
+      - chatbot_data:/app/data
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      JWT_SECRET: ${JWT_SECRET:-trpw-default-super-secure-jwt-secret-key-32chars-minimum}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-1440}
+      API_HOST: "0.0.0.0"
+      API_PORT: "8000"
+      SINGLE_WORKER_CONFIRMED: "true"
+    restart: unless-stopped
+
+volumes:
+  chatbot_data:
+

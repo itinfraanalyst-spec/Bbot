@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enterprise Architecture & Workflow Design System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      /* Semantic Color System (Strict 5-Color Enterprise Palette + Neutrals) */
+      --color-primary: #6366F1;       /* Indigo: Edge, Ingestion & Auth */
+      --color-primary-light: #EEF2FF;
+      --color-primary-glow: rgba(99, 102, 241, 0.28);
+      
+      --color-accent: #8B5CF6;        /* Violet: Core Orchestration & Lock */
+      --color-accent-light: #F5F3FF;
+      --color-accent-glow: rgba(139, 92, 246, 0.25);
+      
+      --color-success: #10B981;       /* Emerald: Happy Path & Final Settlement */
+      --color-success-light: #ECFDF5;
+      --color-success-glow: rgba(16, 185, 129, 0.32);
+      
+      --color-warning: #F59E0B;       /* Amber: ML Decision Gates & Heuristics */
+      --color-warning-light: #FFFBEB;
+      --color-warning-glow: rgba(245, 158, 11, 0.25);
+      
+      --color-danger: #EF4444;        /* Rose: Fraud Quarantine & Rollback */
+      --color-danger-light: #FEF2F2;
+      --color-danger-glow: rgba(239, 68, 68, 0.28);
+
+      /* Typography */
+      --font-heading: 'Space Grotesk', -apple-system, sans-serif;
+      --font-body: 'Inter', -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+
+      /* Dark Theme (Default) */
+      --bg-canvas: #070B13;
+      --bg-surface: #0E1524;
+      --bg-surface-elevated: #162035;
+      --bg-surface-hover: #1E2B45;
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.16);
+      --border-highlight: rgba(99, 102, 241, 0.4);
+      --text-main: #F8FAFC;
+      --text-muted: #94A3B8;
+      --text-dim: #64748B;
+      --dot-grid: rgba(255, 255, 255, 0.06);
+      --group-bg: rgba(255, 255, 255, 0.015);
+      --group-border: rgba(255, 255, 255, 0.10);
+      --tooltip-bg: rgba(14, 21, 36, 0.96);
+      --shadow-node: 0 12px 28px -6px rgba(0, 0, 0, 0.65), 0 6px 12px -4px rgba(0, 0, 0, 0.5);
+      --shadow-badge: 0 2px 6px rgba(0, 0, 0, 0.4);
+    }
+
+    [data-theme="light"] {
+      --bg-canvas: #F8FAFC;
+      --bg-surface: #FFFFFF;
+      --bg-surface-elevated: #F1F5F9;
+      --bg-surface-hover: #E2E8F0;
+      --border-subtle: rgba(0, 0, 0, 0.08);
+      --border-strong: rgba(0, 0, 0, 0.15);
+      --border-highlight: rgba(99, 102, 241, 0.5);
+      --text-main: #0F172A;
+      --text-muted: #475569;
+      --text-dim: #94A3B8;
+      --dot-grid: rgba(0, 0, 0, 0.07);
+      --group-bg: rgba(0, 0, 0, 0.015);
+      --group-border: rgba(0, 0, 0, 0.11);
+      --tooltip-bg: rgba(255, 255, 255, 0.98);
+      --shadow-node: 0 10px 24px -4px rgba(0, 0, 0, 0.08), 0 4px 8px -2px rgba(0, 0, 0, 0.04);
+      --shadow-badge: 0 2px 4px rgba(0, 0, 0, 0.06);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg-canvas);
+      color: var(--text-main);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 24px;
+      transition: background-color 0.3s ease, color 0.3s ease;
+      overflow-x: hidden;
+    }
+
+    /* Top Application Bar */
+    .header-bar {
+      width: 100%;
+      max-width: 1720px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .title-group h1 {
+      font-family: var(--font-heading);
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--text-main) 60%, var(--color-primary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .title-badge {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(99, 102, 241, 0.15);
+      color: var(--color-primary);
+      border: 1px solid var(--color-primary);
+      font-weight: 600;
+      vertical-align: middle;
+      -webkit-text-fill-color: var(--color-primary);
+    }
+
+    .title-group p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .controls-group {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .theme-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-strong);
+      color: var(--text-main);
+      padding: 8px 16px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .theme-toggle-btn:hover {
+      border-color: var(--color-primary);
+      transform: translateY(-1px);
+    }
+
+    /* Diagram Canvas Container */
+    .diagram-viewport {
+      width: 100%;
+      max-width: 1720px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      box-shadow: var(--shadow-node);
+      overflow-x: auto;
+      position: relative;
+      user-select: none;
+    }
+
+    svg#workflow-svg {
+      display: block;
+      width: 100%;
+      min-width: 1540px;
+      height: auto;
+      aspect-ratio: 1720 / 720;
+    }
+
+    /* Happy Path Flowing Pulse Animation */
+    @keyframes flowStroke {
+      from { stroke-dashoffset: 48; }
+      to { stroke-dashoffset: 0; }
+    }
+
+    .edge-path.happy {
+      stroke: var(--color-success);
+      stroke-width: 3.5;
+      stroke-linecap: round;
+      filter: drop-shadow(0 0 6px var(--color-success-glow));
+    }
+
+    .edge-flow.happy {
+      stroke: #A7F3D0;
+      stroke-width: 2.2;
+      stroke-dasharray: 10 14;
+      stroke-linecap: round;
+      animation: flowStroke 1.3s linear infinite;
+      pointer-events: none;
+    }
+
+    .edge-path.danger {
+      stroke: var(--color-danger);
+      stroke-width: 2.5;
+      stroke-dasharray: 6 6;
+      stroke-linecap: round;
+      filter: drop-shadow(0 0 4px var(--color-danger-glow));
+    }
+
+    /* Node Interactive States */
+    .node-group {
+      cursor: pointer;
+      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease;
+    }
+
+    .node-group:hover {
+      transform: translateY(-3px);
+      filter: brightness(1.1) drop-shadow(0 14px 28px rgba(0, 0, 0, 0.5));
+    }
+
+    .node-group.selected rect.node-card-bg,
+    .node-group.selected polygon.node-card-bg {
+      stroke: var(--color-primary) !important;
+      stroke-width: 2.5px !important;
+    }
+
+    /* Floating Tooltip */
+    .diagram-tooltip {
+      position: absolute;
+      display: none;
+      background: var(--tooltip-bg);
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--border-strong);
+      padding: 14px 18px;
+      border-radius: 12px;
+      font-size: 12px;
+      color: var(--text-main);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
+      pointer-events: none;
+      z-index: 100;
+      max-width: 300px;
+      line-height: 1.5;
+      transform: translate(-50%, -100%);
+      margin-top: -16px;
+    }
+
+    .diagram-tooltip::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border-width: 6px;
+      border-style: solid;
+      border-color: var(--tooltip-bg) transparent transparent transparent;
+    }
+
+    /* Legend Bar */
+    .legend-bar {
+      width: 100%;
+      max-width: 1720px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 16px;
+      padding: 14px 20px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .legend-items {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+      align-items: center;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .swatch-pill { width: 22px; height: 10px; border-radius: 9999px; }
+    .swatch { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+    .swatch-line { width: 24px; height: 3px; border-radius: 2px; }
+    .swatch-line.dashed { border-top: 2px dashed var(--color-danger); background: transparent; height: 0; }
+
+    /* Technical Inspector Panel */
+    .inspector-panel {
+      width: 100%;
+      max-width: 1720px;
+      margin-top: 24px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .inspector-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 14px;
+    }
+
+    .inspector-title {
+      font-family: var(--font-heading);
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .matrix-table-wrapper {
+      overflow-x: auto;
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+    }
+
+    .matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 12px;
+    }
+
+    .matrix-table th {
+      background: var(--bg-surface-elevated);
+      color: var(--text-main);
+      padding: 10px 14px;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .matrix-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      vertical-align: middle;
+    }
+
+    .matrix-table tr:hover td {
+      background: var(--bg-surface-hover);
+      color: var(--text-main);
+    }
+
+    .mono-tag {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top App Bar -->
+  <header class="header-bar">
+    <div class="title-group">
+      <h1>
+        Autonomous Order Fulfillment & Risk Orchestration Engine
+        <span class="title-badge">PRODUCTION v2.4</span>
+      </h1>
+      <p>Continuous cryptographic auth, distributed state reservation, ML fraud scoring & idempotent financial ledger settlement</p>
+    </div>
+    <div class="controls-group">
+      <button class="theme-toggle-btn" id="themeToggle" aria-label="Toggle Dark/Light Mode">
+        <span id="themeIcon">☀️</span>
+        <span id="themeLabel">Light Mode</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- SVG Architecture Canvas Viewport -->
+  <main class="diagram-viewport" id="diagramContainer">
+    <svg id="workflow-svg" viewBox="0 0 1720 720" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- Background Grid Pattern -->
+        <pattern id="dotGrid" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
+          <circle cx="2" cy="2" r="1.2" fill="var(--dot-grid)" />
+        </pattern>
+
+        <!-- Drop Shadow Filters -->
+        <filter id="shadowFilter" x="-10%" y="-10%" width="130%" height="130%">
+          <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#000000" flood-opacity="0.4" />
+        </filter>
+
+        <!-- Arrowhead Markers with Precise Anchoring -->
+        <marker id="arrow-happy" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="var(--color-success)" />
+        </marker>
+
+        <marker id="arrow-danger" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="var(--color-danger)" />
+        </marker>
+
+        <!-- Node Gradients -->
+        <linearGradient id="grad-start" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#4F46E5" />
+          <stop offset="100%" stop-color="#3730A3" />
+        </linearGradient>
+
+        <linearGradient id="grad-success" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#059669" />
+          <stop offset="100%" stop-color="#047857" />
+        </linearGradient>
+
+        <linearGradient id="grad-cancel" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#DC2626" />
+          <stop offset="100%" stop-color="#991B1B" />
+        </linearGradient>
+      </defs>
+
+      <!-- Dot Grid Canvas -->
+      <rect width="100%" height="100%" fill="url(#dotGrid)" />
+
+      <!-- Render Layers -->
+      <g id="layer-groups"></g>
+      <g id="layer-edges"></g>
+      <g id="layer-edge-labels"></g>
+      <g id="layer-nodes"></g>
+    </svg>
+
+    <!-- Floating Dynamic Tooltip -->
+    <div id="diagramTooltip" class="diagram-tooltip"></div>
+  </main>
+
+  <!-- Legend Section -->
+  <footer class="legend-bar">
+    <div class="legend-items">
+      <span style="font-weight: 700; color: var(--text-main);">Visual Architecture Legend:</span>
+      <div class="legend-item">
+        <span class="swatch-pill" style="background: var(--color-primary);"></span>
+        <span>Lifecycle Trigger / End (Pill)</span>
+      </div>
+      <div class="legend-item">
+        <span class="swatch" style="background: var(--bg-surface-elevated); border: 1.5px solid var(--border-strong);"></span>
+        <span>Explanatory Process Card</span>
+      </div>
+      <div class="legend-item">
+        <span class="swatch" style="background: var(--bg-surface-elevated); border: 2px solid var(--color-warning); transform: rotate(45deg); width: 10px; height: 10px;"></span>
+        <span>ML Decision Gate (Hexagon)</span>
+      </div>
+      <div class="legend-item">
+        <span class="swatch" style="background: rgba(239, 68, 68, 0.12); border: 1.5px dashed var(--color-danger);"></span>
+        <span>Quarantine / Exception (Dashed)</span>
+      </div>
+      <div class="legend-item">
+        <span class="swatch-line" style="background: var(--color-success); box-shadow: 0 0 6px var(--color-success-glow);"></span>
+        <span>Happy Path (Real-Time Animated Flow)</span>
+      </div>
+      <div class="legend-item">
+        <span class="swatch-line dashed"></span>
+        <span>Security Quarantine / Rollback Flow</span>
+      </div>
+    </div>
+    <div style="font-size: 11px; color: var(--text-dim); font-family: var(--font-mono);">
+      Click any node to inspect payload contracts below
+    </div>
+  </footer>
+
+  <!-- Step-by-Step Architecture Matrix & Inspector -->
+  <section class="inspector-panel" id="inspectorSection">
+    <div class="inspector-header">
+      <div class="inspector-title">
+        <span>🔍 Component & Data Flow Matrix</span>
+        <span id="selectedNodeBadge" class="mono-tag">Overview: All Stages</span>
+      </div>
+      <div style="font-size: 12px; color: var(--text-muted);">
+        Zero-loss transactional semantics • Redlock concurrency model
+      </div>
+    </div>
+
+    <div class="matrix-table-wrapper">
+      <table class="matrix-table">
+        <thead>
+          <tr>
+            <th style="width: 40px; text-align: center;">#</th>
+            <th style="min-width: 160px;">Stage & Component</th>
+            <th style="min-width: 140px;">Protocol / Engine</th>
+            <th style="min-width: 280px;">Explanatory Operations & Rationale</th>
+            <th style="min-width: 180px;">Transit Data & Next Transition</th>
+            <th style="min-width: 120px;">SLA / Latency</th>
+          </tr>
+        </thead>
+        <tbody id="matrixTableBody">
+          <!-- Populated dynamically via JS -->
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- JavaScript: JSON Architecture Schema & Deterministic SVG Generator -->
+  <script>
+    /* ==========================================================================
+       1. DATA DEFINITION (Generous Spacing, High Signal & Explanatory Metadata)
+       ========================================================================== */
+    const WORKFLOW_SCHEMA = {
+      title: "Autonomous Order Fulfillment & Risk Orchestration Engine",
+      direction: "LR",
+      groups: [
+        {
+          id: "phase-1",
+          label: "PHASE 01: EDGE INGESTION & SECURITY",
+          subtitle: "Validates HMAC signatures, decrypts tenant JWT, and enforces rate limits.",
+          accentColor: "var(--color-primary)",
+          bounds: { x: 40, y: 70, width: 490, height: 600 }
+        },
+        {
+          id: "phase-2",
+          label: "PHASE 02: DISTRIBUTED STATE & RISK ENGINE",
+          subtitle: "Acquires distributed Redis lock and evaluates real-time ML fraud scoring model.",
+          accentColor: "var(--color-accent)",
+          bounds: { x: 550, y: 70, width: 590, height: 600 }
+        },
+        {
+          id: "phase-3",
+          label: "PHASE 03: FINANCIAL SETTLEMENT & DISPATCH",
+          subtitle: "Captures 3DS payment, commits double-entry ledger, and emits Kafka events.",
+          accentColor: "var(--color-success)",
+          bounds: { x: 1160, y: 70, width: 520, height: 600 }
+        }
+      ],
+      nodes: [
+        /* Row 1: Golden Happy Path (y = 200, height = 120) */
+        {
+          id: "node-start",
+          type: "start",
+          tier: "CLIENT TRIGGER",
+          label: "Order Placed",
+          caption: "Mobile / Web Checkout",
+          explains: "End-user initiates checkout with encrypted payment token & cart.",
+          icon: "play",
+          x: 65,
+          y: 200,
+          width: 185,
+          height: 120,
+          meta: "Latency: <5ms | TLS 1.3",
+          tagColor: "var(--color-primary)",
+          tooltip: "Receives encrypted client payload via REST/gRPC. Validates cryptographic HMAC signature."
+        },
+        {
+          id: "node-io",
+          type: "io",
+          tier: "EDGE GATEWAY",
+          label: "Context Ingestion",
+          caption: "Kong Gateway & OAuth",
+          explains: "Deserializes JSON, verifies JWT claims & rate limits (100 req/s).",
+          icon: "document",
+          x: 340,
+          y: 200,
+          width: 170,
+          height: 120,
+          meta: "OAuth 2.0 | Schema v7",
+          tagColor: "var(--color-primary)",
+          tooltip: "Validates payload constraints against strict JSONSchema. Extracts tenant ID & user scopes."
+        },
+        {
+          id: "node-lock",
+          type: "process",
+          step: "01",
+          tier: "IN-MEMORY STATE",
+          label: "Inventory Lock",
+          caption: "Redis Cluster Redlock",
+          explains: "Acquires atomic distributed lock with 120s TTL to prevent overselling.",
+          icon: "package",
+          x: 580,
+          y: 200,
+          width: 200,
+          height: 120,
+          meta: "TTL: 120s | Raft Cluster",
+          tagColor: "var(--color-accent)",
+          tooltip: "Executes Redlock consensus across 3 master Redis nodes. Guarantees zero stock collision during flash sales."
+        },
+        {
+          id: "node-risk",
+          type: "decision",
+          tier: "ML INFERENCE",
+          label: "Fraud Risk OK?",
+          caption: "XGBoost Real-Time Model",
+          explains: "Evaluates device telemetry, IP velocity & cardholder history (<0.15).",
+          icon: "shield",
+          x: 870,
+          y: 195,
+          width: 220,
+          height: 130,
+          meta: "Inference: 14ms | Threshold 0.15",
+          tagColor: "var(--color-warning)",
+          tooltip: "Calculates anomaly vectors: velocity drift, VPN detection, and blacklisted device fingerprints."
+        },
+        {
+          id: "node-settle",
+          type: "process",
+          step: "02",
+          tier: "FINANCIAL LEDGER",
+          label: "Instant Settlement",
+          caption: "Stripe / UPI 3DS Gateway",
+          explains: "Executes idempotent card capture & writes double-entry ledger entry.",
+          icon: "credit-card",
+          x: 1190,
+          y: 200,
+          width: 210,
+          height: 120,
+          meta: "Idempotent | ACID Ledger",
+          tagColor: "var(--color-success)",
+          tooltip: "Captures funds with payment gateway. Commits transaction to PostgreSQL ledger with immutable audit trail."
+        },
+        {
+          id: "node-end",
+          type: "end",
+          tier: "TERMINUS",
+          label: "Order Fulfilled",
+          caption: "Kafka Stream & Dispatch",
+          explains: "Generates electronic AWB and notifies customer via SMS/Email.",
+          icon: "check-circle",
+          x: 1490,
+          y: 200,
+          width: 175,
+          height: 120,
+          meta: "Kafka 3.6 | Delivery SMS",
+          tagColor: "var(--color-success)",
+          tooltip: "Publishes ORDER_DISPATCHED event. Triggers downstream robotic warehouse picking and sends customer invoice."
+        },
+
+        /* Row 2: Exception Branch (y = 480, height = 120) */
+        {
+          id: "node-error",
+          type: "error",
+          tier: "QUARANTINE EXCEPTION",
+          label: "Security Flag",
+          caption: "SecOps PagerAlert",
+          explains: "Transaction quarantined. Freezes token & routes to human fraud analyst.",
+          icon: "alert",
+          x: 870,
+          y: 480,
+          width: 220,
+          height: 120,
+          meta: "SLA: 15-min Human Review",
+          tagColor: "var(--color-danger)",
+          tooltip: "Automated high-priority alert dispatched to Security Operations Slack channel. Freezes user balance."
+        },
+        {
+          id: "node-cancel",
+          type: "end-cancel",
+          tier: "ROLLBACK TERMINUS",
+          label: "Order Revoked",
+          caption: "Atomic Stock Release",
+          explains: "Rolls back Redis hold, voids authorization hold & logs SIEM threat.",
+          icon: "ban",
+          x: 1190,
+          y: 480,
+          width: 210,
+          height: 120,
+          meta: "Zero-Loss Void | Cloud Armor",
+          tagColor: "var(--color-danger)",
+          tooltip: "Releases inventory lock immediately, voids payment hold, and pushes bad-actor IP to Cloud Armor WAF."
+        }
+      ],
+      edges: [
+        /* Happy Path Stream (Runways > 80px) */
+        {
+          from: "node-start",
+          to: "node-io",
+          label: "POST /v1/checkout",
+          sublabel: "Payload: Cart + JWT",
+          type: "happy",
+          fromSide: "right",
+          toSide: "left"
+        },
+        {
+          from: "node-io",
+          to: "node-lock",
+          label: "Verify OK (200)",
+          sublabel: "Token Authorized",
+          type: "happy",
+          fromSide: "right",
+          toSide: "left"
+        },
+        {
+          from: "node-lock",
+          to: "node-risk",
+          label: "Lock Acquired",
+          sublabel: "SKU Reserved (120s)",
+          type: "happy",
+          fromSide: "right",
+          toSide: "left"
+        },
+        {
+          from: "node-risk",
+          to: "node-settle",
+          label: "Low Risk (Score < 0.15)",
+          sublabel: "Pass Clean Traffic",
+          type: "happy",
+          fromSide: "right",
+          toSide: "left"
+        },
+        {
+          from: "node-settle",
+          to: "node-end",
+          label: "Captured 3DS",
+          sublabel: "Ledger Committed",
+          type: "happy",
+          fromSide: "right",
+          toSide: "left"
+        },
+
+        /* Exception Flow (Runway: 150px vertical drop) */
+        {
+          from: "node-risk",
+          to: "node-error",
+          label: "High Risk (Score ≥ 0.15)",
+          sublabel: "Trigger PagerDuty",
+          type: "danger",
+          fromSide: "bottom",
+          toSide: "top"
+        },
+        {
+          from: "node-error",
+          to: "node-cancel",
+          label: "Review Rejected",
+          sublabel: "Execute Rollback",
+          type: "danger",
+          fromSide: "right",
+          toSide: "left"
+        }
+      ]
+    };
+
+    /* ==========================================================================
+       2. SVG ICON REGISTRY
+       ========================================================================== */
+    const ICONS = {
+      play: `<polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/>`,
+      document: `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="currentColor" stroke-width="2"/><polyline points="14 2 14 8 20 8" fill="none" stroke="currentColor" stroke-width="2"/>`,
+      package: `<line x1="16.5" y1="9.4" x2="7.5" y2="4.21" stroke="currentColor" stroke-width="2"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" fill="none" stroke="currentColor" stroke-width="2"/><polyline points="3.27 6.96 12 12.01 20.73 6.96" fill="none" stroke="currentColor" stroke-width="2"/>`,
+      shield: `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="none" stroke="currentColor" stroke-width="2"/>`,
+      "credit-card": `<rect x="1" y="4" width="22" height="16" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="2"/><line x1="1" y1="10" x2="23" y2="10" stroke="currentColor" stroke-width="2"/>`,
+      "check-circle": `<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" fill="none" stroke="currentColor" stroke-width="2"/><polyline points="22 4 12 14.01 9 11.01" fill="none" stroke="currentColor" stroke-width="2"/>`,
+      alert: `<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" fill="none" stroke="currentColor" stroke-width="2"/><line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" stroke-width="2"/><line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" stroke-width="2"/>`,
+      ban: `<circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" stroke="currentColor" stroke-width="2"/>`
+    };
+
+    /* ==========================================================================
+       3. DETERMINISTIC SVG RENDER ENGINE
+       ========================================================================== */
+    const nodeMap = new Map();
+
+    function renderDiagram() {
+      const layerGroups = document.getElementById("layer-groups");
+      const layerEdges = document.getElementById("layer-edges");
+      const layerEdgeLabels = document.getElementById("layer-edge-labels");
+      const layerNodes = document.getElementById("layer-nodes");
+
+      WORKFLOW_SCHEMA.nodes.forEach(n => nodeMap.set(n.id, n));
+
+      // 1. Swimlane Group Rendering
+      let groupsHTML = "";
+      WORKFLOW_SCHEMA.groups.forEach(g => {
+        const { x, y, width, height } = g.bounds;
+        groupsHTML += `
+          <g class="swimlane-group">
+            <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="18"
+                  fill="var(--group-bg)" stroke="var(--group-border)" stroke-width="1.5" stroke-dasharray="6 6"/>
+            <!-- Phase Header Badge -->
+            <rect x="${x + 20}" y="${y - 14}" width="${g.label.length * 7.5 + 44}" height="28" rx="14"
+                  fill="var(--bg-surface)" stroke="${g.accentColor}" stroke-width="1.5"/>
+            <circle cx="${x + 36}" cy="${y}" r="4.5" fill="${g.accentColor}" />
+            <text x="${x + 50}" y="${y + 4.5}" fill="${g.accentColor}" font-family="var(--font-heading)"
+                  font-size="11" font-weight="700" letter-spacing="0.06em">${g.label}</text>
+            <!-- Phase Subtitle / Goal -->
+            <text x="${x + 24}" y="${y + 30}" fill="var(--text-dim)" font-family="var(--font-body)"
+                  font-size="10.5" font-weight="500">${g.subtitle}</text>
+          </g>
+        `;
+      });
+      layerGroups.innerHTML = groupsHTML;
+
+      // 2. Connectors & Clean Badges
+      let edgesHTML = "";
+      let edgeLabelsHTML = "";
+
+      WORKFLOW_SCHEMA.edges.forEach((edge) => {
+        const src = nodeMap.get(edge.from);
+        const dst = nodeMap.get(edge.to);
+        if (!src || !dst) return;
+
+        const p1 = getConnectionPoint(src, edge.fromSide);
+        const p2 = getConnectionPoint(dst, edge.toSide);
+
+        let pathData = "";
+        let midX = (p1.x + p2.x) / 2;
+        let midY = (p1.y + p2.y) / 2;
+
+        if (edge.fromSide === "right" && edge.toSide === "left") {
+          const dx = Math.abs(p2.x - p1.x) * 0.5;
+          pathData = `M ${p1.x} ${p1.y} C ${p1.x + dx} ${p1.y}, ${p2.x - dx} ${p2.y}, ${p2.x} ${p2.y}`;
+        } else if (edge.fromSide === "bottom" && edge.toSide === "top") {
+          pathData = `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
+        }
+
+        const markerId = edge.type === "happy" ? "arrow-happy" : "arrow-danger";
+
+        edgesHTML += `
+          <g class="edge-item">
+            <path d="${pathData}" class="edge-path ${edge.type}" marker-end="url(#${markerId})" />
+            ${edge.type === "happy" ? `<path d="${pathData}" class="edge-flow happy" />` : ''}
+          </g>
+        `;
+
+        // Explanatory Two-Line Edge Badge
+        if (edge.label) {
+          const badgeW = Math.max(edge.label.length, (edge.sublabel || '').length) * 6.5 + 24;
+          const badgeH = 28;
+          let labelY = edge.fromSide === "bottom" ? midY : midY - 20;
+
+          edgeLabelsHTML += `
+            <g class="edge-label-badge" transform="translate(${midX}, ${labelY})">
+              <rect x="${-badgeW / 2}" y="${-badgeH / 2}" width="${badgeW}" height="${badgeH}" rx="8"
+                    fill="var(--bg-surface)" stroke="var(--border-strong)" stroke-width="1.2" filter="url(#shadowFilter)" />
+              <text x="0" y="-1" text-anchor="middle" font-family="var(--font-heading)"
+                    font-size="10.5" font-weight="700" fill="${edge.type === 'danger' ? 'var(--color-danger)' : 'var(--text-main)'}">
+                ${edge.label}
+              </text>
+              ${edge.sublabel ? `
+                <text x="0" y="10" text-anchor="middle" font-family="var(--font-mono)"
+                      font-size="9" font-weight="500" fill="var(--text-dim)">
+                  ${edge.sublabel}
+                </text>
+              ` : ''}
+            </g>
+          `;
+        }
+      });
+
+      layerEdges.innerHTML = edgesHTML;
+      layerEdgeLabels.innerHTML = edgeLabelsHTML;
+
+      // 3. Explanatory Node Cards (Rich Information Design)
+      let nodesHTML = "";
+      WORKFLOW_SCHEMA.nodes.forEach(node => {
+        nodesHTML += renderExplanatoryNode(node);
+      });
+      layerNodes.innerHTML = nodesHTML;
+
+      // 4. Populate Matrix Table
+      renderMatrixTable();
+
+      // 5. Attach Interactive Listeners
+      setupInteractions();
+    }
+
+    function getConnectionPoint(node, side) {
+      if (side === "left") return { x: node.x, y: node.y + node.height / 2 };
+      if (side === "right") return { x: node.x + node.width, y: node.y + node.height / 2 };
+      if (side === "top") return { x: node.x + node.width / 2, y: node.y };
+      if (side === "bottom") return { x: node.x + node.width / 2, y: node.y + node.height };
+      return { x: node.x + node.width / 2, y: node.y + node.height / 2 };
+    }
+
+    /* Node Card Generator with Deep Explanatory Architecture */
+    function renderExplanatoryNode(node) {
+      const { id, type, tier, label, caption, explains, icon, x, y, width, height, step, meta } = node;
+      const iconSvg = ICONS[icon] || "";
+
+      if (type === "start" || type === "end" || type === "end-cancel") {
+        const fillGrad = type === "start" ? "url(#grad-start)" : (type === "end" ? "url(#grad-success)" : "url(#grad-cancel)");
+        return `
+          <g class="node-group" id="${id}" data-id="${id}">
+            <rect class="node-card-bg" x="${x}" y="${y}" width="${width}" height="${height}" rx="16"
+                  fill="${fillGrad}" stroke="rgba(255,255,255,0.25)" stroke-width="1.5" filter="url(#shadowFilter)" />
+            
+            <!-- Tier Pill -->
+            <rect x="${x + 14}" y="${y + 12}" width="${tier.length * 6.5 + 16}" height="18" rx="9" fill="rgba(255,255,255,0.2)"/>
+            <text x="${x + 22}" y="${y + 24}" font-family="var(--font-mono)" font-size="9" font-weight="700" fill="#FFFFFF">${tier}</text>
+            
+            <!-- Icon -->
+            <g transform="translate(${x + width - 32}, ${y + 12}) scale(0.68)" color="#FFFFFF">${iconSvg}</g>
+            
+            <!-- Title -->
+            <text x="${x + 14}" y="${y + 52}" font-family="var(--font-heading)" font-size="14" font-weight="700" fill="#FFFFFF">${label}</text>
+            
+            <!-- Explanatory Context -->
+            <text x="${x + 14}" y="${y + 72}" font-family="var(--font-body)" font-size="10.5" fill="rgba(255,255,255,0.85)">${caption}</text>
+            
+            <!-- Metadata Footer -->
+            <line x1="${x + 14}" y1="${y + 88}" x2="${x + width - 14}" y2="${y + 88}" stroke="rgba(255,255,255,0.18)" stroke-width="1"/>
+            <text x="${x + 14}" y="${y + 104}" font-family="var(--font-mono)" font-size="9" fill="rgba(255,255,255,0.7)">${meta}</text>
+          </g>
+        `;
+      } else if (type === "process") {
+        return `
+          <g class="node-group" id="${id}" data-id="${id}">
+            <rect class="node-card-bg" x="${x}" y="${y}" width="${width}" height="${height}" rx="14"
+                  fill="var(--bg-surface-elevated)" stroke="var(--border-strong)" stroke-width="1.5" filter="url(#shadowFilter)" />
+            <rect x="${x}" y="${y}" width="4" height="${height}" rx="2" fill="var(--color-accent)"/>
+            
+            <!-- Step Badge & Tier -->
+            <rect x="${x + 12}" y="${y + 12}" width="26" height="18" rx="6" fill="var(--color-accent-glow)" stroke="var(--color-accent)" stroke-width="1"/>
+            <text x="${x + 25}" y="${y + 24}" text-anchor="middle" font-family="var(--font-heading)" font-size="10" font-weight="700" fill="var(--color-accent)">${step}</text>
+            <text x="${x + 46}" y="${y + 24}" font-family="var(--font-mono)" font-size="9.5" font-weight="600" fill="var(--text-dim)">${tier}</text>
+            
+            <!-- Icon -->
+            <g transform="translate(${x + width - 30}, ${y + 12}) scale(0.68)" color="var(--text-dim)">${iconSvg}</g>
+            
+            <!-- Title -->
+            <text x="${x + 12}" y="${y + 50}" font-family="var(--font-heading)" font-size="14" font-weight="700" fill="var(--text-main)">${label}</text>
+            
+            <!-- Explanatory Micro-copy -->
+            <text x="${x + 12}" y="${y + 70}" font-family="var(--font-body)" font-size="10.5" fill="var(--text-muted)">${caption}</text>
+            
+            <!-- Meta SLA -->
+            <line x1="${x + 12}" y1="${y + 88}" x2="${x + width - 12}" y2="${y + 88}" stroke="var(--border-subtle)" stroke-width="1"/>
+            <text x="${x + 12}" y="${y + 104}" font-family="var(--font-mono)" font-size="9" fill="var(--color-accent)">${meta}</text>
+          </g>
+        `;
+      } else if (type === "decision") {
+        return `
+          <g class="node-group" id="${id}" data-id="${id}">
+            <rect class="node-card-bg" x="${x}" y="${y}" width="${width}" height="${height}" rx="14"
+                  fill="var(--bg-surface-elevated)" stroke="var(--color-warning)" stroke-width="2" filter="url(#shadowFilter)" />
+            <rect x="${x}" y="${y}" width="4" height="${height}" rx="2" fill="var(--color-warning)"/>
+            
+            <!-- Decision Badge & Tier -->
+            <rect x="${x + 12}" y="${y + 12}" width="${tier.length * 6.5 + 16}" height="18" rx="6" fill="var(--color-warning-glow)" stroke="var(--color-warning)" stroke-width="1"/>
+            <text x="${x + 20}" y="${y + 24}" font-family="var(--font-mono)" font-size="9" font-weight="700" fill="var(--color-warning)">${tier}</text>
+            
+            <g transform="translate(${x + width - 30}, ${y + 12}) scale(0.68)" color="var(--color-warning)">${iconSvg}</g>
+            
+            <!-- Question Title -->
+            <text x="${x + 12}" y="${y + 52}" font-family="var(--font-heading)" font-size="14" font-weight="700" fill="var(--text-main)">${label}</text>
+            
+            <!-- Heuristic Rule -->
+            <text x="${x + 12}" y="${y + 74}" font-family="var(--font-body)" font-size="10.5" fill="var(--color-warning)">${caption}</text>
+            
+            <line x1="${x + 12}" y1="${y + 94}" x2="${x + width - 12}" y2="${y + 94}" stroke="var(--border-subtle)" stroke-width="1"/>
+            <text x="${x + 12}" y="${y + 112}" font-family="var(--font-mono)" font-size="9" fill="var(--text-muted)">${meta}</text>
+          </g>
+        `;
+      } else if (type === "io") {
+        return `
+          <g class="node-group" id="${id}" data-id="${id}">
+            <rect class="node-card-bg" x="${x}" y="${y}" width="${width}" height="${height}" rx="14"
+                  fill="var(--bg-surface-elevated)" stroke="var(--color-primary)" stroke-width="1.5" filter="url(#shadowFilter)" />
+            <rect x="${x}" y="${y}" width="4" height="${height}" rx="2" fill="var(--color-primary)"/>
+            
+            <rect x="${x + 12}" y="${y + 12}" width="${tier.length * 6.5 + 16}" height="18" rx="6" fill="var(--color-primary-glow)"/>
+            <text x="${x + 20}" y="${y + 24}" font-family="var(--font-mono)" font-size="9" font-weight="700" fill="var(--color-primary)">${tier}</text>
+            <g transform="translate(${x + width - 30}, ${y + 12}) scale(0.68)" color="var(--color-primary)">${iconSvg}</g>
+            
+            <text x="${x + 12}" y="${y + 50}" font-family="var(--font-heading)" font-size="14" font-weight="700" fill="var(--text-main)">${label}</text>
+            <text x="${x + 12}" y="${y + 70}" font-family="var(--font-body)" font-size="10.5" fill="var(--text-muted)">${caption}</text>
+            
+            <line x1="${x + 12}" y1="${y + 88}" x2="${x + width - 12}" y2="${y + 88}" stroke="var(--border-subtle)" stroke-width="1"/>
+            <text x="${x + 12}" y="${y + 104}" font-family="var(--font-mono)" font-size="9" fill="var(--color-primary)">${meta}</text>
+          </g>
+        `;
+      } else if (type === "error") {
+        return `
+          <g class="node-group" id="${id}" data-id="${id}">
+            <rect class="node-card-bg" x="${x}" y="${y}" width="${width}" height="${height}" rx="14"
+                  fill="rgba(239, 68, 68, 0.08)" stroke="var(--color-danger)" stroke-width="2" stroke-dasharray="6 4" filter="url(#shadowFilter)" />
+            <rect x="${x}" y="${y}" width="4" height="${height}" rx="2" fill="var(--color-danger)"/>
+            
+            <rect x="${x + 12}" y="${y + 12}" width="${tier.length * 6.5 + 16}" height="18" rx="6" fill="var(--color-danger-glow)"/>
+            <text x="${x + 20}" y="${y + 24}" font-family="var(--font-mono)" font-size="9" font-weight="700" fill="var(--color-danger)">${tier}</text>
+            <g transform="translate(${x + width - 30}, ${y + 12}) scale(0.68)" color="var(--color-danger)">${iconSvg}</g>
+            
+            <text x="${x + 12}" y="${y + 50}" font-family="var(--font-heading)" font-size="14" font-weight="700" fill="var(--color-danger)">${label}</text>
+            <text x="${x + 12}" y="${y + 70}" font-family="var(--font-body)" font-size="10.5" fill="var(--text-muted)">${caption}</text>
+            
+            <line x1="${x + 12}" y1="${y + 88}" x2="${x + width - 12}" y2="${y + 88}" stroke="var(--border-subtle)" stroke-width="1"/>
+            <text x="${x + 12}" y="${y + 104}" font-family="var(--font-mono)" font-size="9" fill="var(--color-danger)">${meta}</text>
+          </g>
+        `;
+      }
+      return "";
+    }
+
+    /* 4. Populating Step-by-Step Matrix Table */
+    function renderMatrixTable() {
+      const tbody = document.getElementById("matrixTableBody");
+      let tableHTML = "";
+
+      WORKFLOW_SCHEMA.nodes.forEach((node, idx) => {
+        const edge = WORKFLOW_SCHEMA.edges.find(e => e.from === node.id);
+        tableHTML += `
+          <tr id="matrix-row-${node.id}">
+            <td style="text-align: center; font-weight: 700; color: var(--color-primary);">${idx + 1}</td>
+            <td>
+              <div style="font-weight: 700; color: var(--text-main); font-family: var(--font-heading);">${node.label}</div>
+              <div style="font-size: 11px; color: var(--text-dim);">${node.caption}</div>
+            </td>
+            <td><span class="mono-tag">${node.tier}</span></td>
+            <td>${node.explains}</td>
+            <td>
+              ${edge ? `
+                <div style="font-weight: 600; color: ${edge.type === 'danger' ? 'var(--color-danger)' : 'var(--color-success)'};">➔ ${edge.label}</div>
+                <div style="font-size: 11px; color: var(--text-dim); font-family: var(--font-mono);">${edge.sublabel || ''}</div>
+              ` : '<span style="color: var(--color-success); font-weight: 600;">✓ Terminal State</span>'}
+            </td>
+            <td><span class="mono-tag" style="color: ${node.tagColor};">${node.meta.split('|')[0].trim()}</span></td>
+          </tr>
+        `;
+      });
+
+      tbody.innerHTML = tableHTML;
+    }
+
+    /* 5. Tooltip & Interactions */
+    function setupInteractions() {
+      const tooltip = document.getElementById("diagramTooltip");
+      const container = document.getElementById("diagramContainer");
+      const badge = document.getElementById("selectedNodeBadge");
+
+      document.querySelectorAll(".node-group").forEach(elem => {
+        elem.addEventListener("mouseenter", () => {
+          const id = elem.getAttribute("data-id");
+          const node = nodeMap.get(id);
+          if (!node || !node.tooltip) return;
+
+          tooltip.innerHTML = `
+            <div style="font-family: var(--font-mono); font-size: 10px; font-weight:700; text-transform:uppercase; color:${node.tagColor}; margin-bottom: 4px;">
+              ${node.tier}
+            </div>
+            <div style="font-weight:700; margin-bottom:4px; font-size:13px; font-family: var(--font-heading);">${node.label}</div>
+            <div style="color:var(--text-muted); font-size: 11.5px; margin-bottom: 6px;">${node.tooltip}</div>
+            <div style="font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); border-top: 1px solid var(--border-subtle); padding-top: 4px;">
+              ${node.meta}
+            </div>
+          `;
+          tooltip.style.display = "block";
+
+          const bbox = elem.getBoundingClientRect();
+          const containerBox = container.getBoundingClientRect();
+          tooltip.style.left = `${bbox.left - containerBox.left + (bbox.width / 2)}px`;
+          tooltip.style.top = `${bbox.top - containerBox.top}px`;
+        });
+
+        elem.addEventListener("mouseleave", () => {
+          tooltip.style.display = "none";
+        });
+
+        elem.addEventListener("click", () => {
+          const id = elem.getAttribute("data-id");
+          const node = nodeMap.get(id);
+          if (!node) return;
+
+          document.querySelectorAll(".node-group").forEach(el => el.classList.remove("selected"));
+          elem.classList.add("selected");
+
+          badge.textContent = `Selected: ${node.label} (${node.tier})`;
+          badge.style.color = node.tagColor;
+
+          const row = document.getElementById(`matrix-row-${id}`);
+          if (row) {
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            row.style.background = 'var(--bg-surface-hover)';
+            setTimeout(() => { row.style.background = ''; }, 2000);
+          }
+        });
+      });
+
+      // Dark / Light Theme Toggle
+      const themeToggle = document.getElementById("themeToggle");
+      const themeIcon = document.getElementById("themeIcon");
+      const themeLabel = document.getElementById("themeLabel");
+
+      themeToggle.addEventListener("click", () => {
+        const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+        document.documentElement.setAttribute("data-theme", isDark ? "light" : "dark");
+        themeIcon.textContent = isDark ? "🌙" : "☀️";
+        themeLabel.textContent = isDark ? "Dark Mode" : "Light Mode";
+      });
+    }
+
+    document.addEventListener("DOMContentLoaded", renderDiagram);
+  </script>
+</body>
+</html>

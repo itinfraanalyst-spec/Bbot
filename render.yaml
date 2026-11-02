@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: bbot-ai
+    env: python
+    plan: free
+    region: oregon
+    buildCommand: "./build.sh"
+    startCommand: "uvicorn src.api.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: NODE_VERSION
+        value: 20.11.0
+      - key: ENVIRONMENT
+        value: production
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: SINGLE_WORKER_CONFIRMED
+        value: "true"
+      - key: ALLOWED_ORIGINS
+        value: "*"
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: "qwen/qwen3.8-27b"
+      - key: ENABLE_DATA_MASKING
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true
+

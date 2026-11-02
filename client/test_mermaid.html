@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    const isDark = false;
+    const isDfdMode = true;
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'loose',
+      suppressErrorRendering: true,
+      theme: isDark ? 'dark' : 'neutral',
+      fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+      themeVariables: {
+        fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+        fontSize: '13px',
+        darkMode: isDark,
+        primaryColor: isDark ? '#1e293b' : '#f8fafc',
+        primaryTextColor: isDark ? '#f8fafc' : '#0f172a',
+        primaryBorderColor: isDfdMode ? '#0284c7' : '#C87514',
+        lineColor: isDfdMode ? (isDark ? '#38bdf8' : '#0284c7') : (isDark ? '#94a3b8' : '#64748b'),
+        secondaryColor: isDark ? '#0f172a' : '#ffffff',
+        tertiaryColor: isDark ? '#1e293b' : '#e2e8f0',
+        edgeLabelBackground: isDark ? '#1e293b' : '#ffffff',
+        clusterBkg: isDark ? 'rgba(30, 41, 59, 0.55)' : 'rgba(241, 245, 249, 0.8)',
+        clusterBorder: isDark ? 'rgba(148, 163, 184, 0.35)' : 'rgba(148, 163, 184, 0.5)',
+        nodeBorder: isDfdMode ? (isDark ? '#38bdf8' : '#0284c7') : (isDark ? 'rgba(200, 117, 20, 0.6)' : 'rgba(200, 117, 20, 0.8)'),
+        mainBkg: isDark ? '#1e293b' : '#ffffff',
+        titleColor: isDark ? '#f8fafc' : '#0f172a',
+        textColor: isDark ? '#f8fafc' : '#0f172a',
+        nodeTextColor: isDark ? '#f8fafc' : '#0f172a',
+        clusterTextColor: isDark ? '#f8fafc' : '#0f172a',
+        edgeLabelColor: isDfdMode ? (isDark ? '#38bdf8' : '#0369a1') : (isDark ? '#f1f5f9' : '#0f172a'),
+      },
+      flowchart: {
+        curve: isDfdMode ? 'linear' : 'basis',
+        htmlLabels: true,
+        padding: 20,
+        nodeSpacing: isDfdMode ? 60 : 50,
+        rankSpacing: isDfdMode ? 70 : 60,
+        useMaxWidth: false,
+      },
+    });
+    const chart = `flowchart TD
+    Customer["Customer"]
+    ClothesStore["Clothes Store"]
+    OrderClothes(("Order<br/>clothes"))
+    InventoryStore[("Inventory")]
+    OrderStore[("Order")]
+    GenerateReports(("Generate<br/>reports"))
+    SalesManager["Sales<br/>manager"]
+    OrderInventory(("Order<br/>inventory"))
+    Supplier["Supplier"]
+
+    Customer -->|Order| OrderClothes
+    OrderClothes -->|Bill| Customer
+    OrderClothes -->|Order| ClothesStore
+    OrderClothes -->|Inventory details| InventoryStore
+    OrderClothes -->|Order| OrderStore
+
+    InventoryStore -->|Inventory details| GenerateReports
+    OrderStore -->|Orders| GenerateReports
+    GenerateReports -->|Reports| SalesManager
+
+    SalesManager -->|Inventory order| OrderInventory
+    OrderInventory -->|Inventory order| Supplier
+    OrderInventory -->|Inventory details| InventoryStore`;
+    mermaid.render('test1', chart).then(res => {
+      document.body.innerHTML = 'SUCCESS: ' + res.svg;
+    }).catch(err => {
+      document.body.innerHTML = 'ERROR: ' + err.message;
+    });
+  </script>
+</head>
+<body></body>
+</html>

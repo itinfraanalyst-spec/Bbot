@@ -1,0 +1,520 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+@custom-variant dark (&:where(.dark, .dark *));
+@layer base {
+  :root {
+    /* Exact Color Palette - Dark (Default) */
+    --bg-primary: #1B1E22;
+    --bg-sidebar: #16181B;
+    --bg-surface: #262A2F;
+    --bg-surface-hover: #2E3339;
+    --border-subtle: rgba(148,163,171,0.16);
+    
+    --text-primary: #ECEDEE;
+    --text-secondary: #B4B9BE;
+    --text-muted: #7C838A;
+    
+    --accent: #C87514;
+    --accent-hover: #D9821B;
+    
+    --energy-gradient: linear-gradient(135deg, #E39A3D 0%, #C87514 50%, #A85F12 100%);
+    --energy-glow: 0 4px 16px color-mix(in srgb, var(--accent) 30%, transparent);
+    
+    --success: #4caf50;
+    --error: #fa5252;
+    --warning: #fcc419;
+
+    /* Message Bubbles */
+    --msg-user-bg: var(--bg-surface);
+    --msg-user-border: var(--border-subtle);
+    --msg-assistant-bg: transparent;
+
+    /* Spacing System */
+    --sp-1: 4px;
+    --sp-2: 8px;
+    --sp-3: 12px;
+    --sp-4: 16px;
+    --sp-5: 24px;
+    --sp-6: 32px;
+    --sp-8: 48px;
+
+    /* Border Radius */
+    --radius-sm: 6px;
+    --radius-md: 12px;
+    --radius-lg: 18px;
+    --radius-full: 9999px;
+    
+    /* Shadcn Fallback Mapping */
+    --background: var(--bg-primary);
+    --foreground: var(--text-primary);
+    --card: var(--bg-surface);
+    --card-foreground: var(--text-primary);
+    --popover: var(--bg-surface);
+    --popover-foreground: var(--text-primary);
+    --primary: var(--accent);
+    --primary-foreground: #ffffff;
+    --secondary: var(--bg-surface-hover);
+    --secondary-foreground: var(--text-primary);
+    --muted: var(--bg-surface-hover);
+    --muted-foreground: var(--text-muted);
+    --border: var(--border-subtle);
+    --input: var(--border-subtle);
+    --ring: var(--accent);
+    --radius: var(--radius-md);
+  }
+  .light {
+    /* Exact Color Palette - Light */
+    --bg-primary: #ffffff;
+    --bg-sidebar: #ffffff;
+    --bg-surface: #ffffff;
+    --bg-surface-hover: #F0F2F5;
+    --border-subtle: #94A3AB;
+    
+    --text-primary: #1A1D1F;
+    --text-secondary: #4A4F54;
+    --text-muted: #94A3AB;
+    
+    --accent: #c16d18;
+    --accent-hover: #A85E15;
+
+    /* Message Bubbles */
+    --msg-user-bg: var(--bg-surface);
+    --msg-user-border: var(--border-subtle);
+    --msg-assistant-bg: transparent;
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--border-subtle);
+  }
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: var(--sp-2); height: var(--sp-2); }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: var(--radius-full); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+  /* Studio Toolbar Horizontal Scrollbar */
+  .toolbar-scrollbar {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--accent) 70%, var(--border-subtle)) color-mix(in srgb, var(--bg-surface) 60%, transparent);
+  }
+  .toolbar-scrollbar::-webkit-scrollbar {
+    height: 7px;
+  }
+  .toolbar-scrollbar::-webkit-scrollbar-track {
+    background: color-mix(in srgb, var(--bg-surface) 70%, transparent);
+    border-radius: 9999px;
+    margin: 0 12px 2px 12px;
+  }
+  .toolbar-scrollbar::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--accent) 60%, var(--border-subtle));
+    border-radius: 9999px;
+  }
+  .toolbar-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--accent);
+  }
+  
+  /* Typing Cursor Animation */
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+  .typing-cursor > *:last-child::after {
+    content: ' ▍';
+    animation: blink 1s step-start infinite;
+    color: var(--accent);
+  }
+
+  /* Creative Enterprise Mermaid SVG Styling */
+  /* Creative Enterprise Mermaid SVG Styling */
+  .mermaid-canvas {
+    width: max-content;
+    min-width: 100%;
+    display: flex;
+    justify-content: flex-start;
+    align-items: flex-start;
+    margin: 0 auto;
+  }
+  .mermaid-canvas svg {
+    display: block;
+    height: auto;
+    overflow: visible;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+  }
+
+  .mermaid-canvas-fit svg {
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .mermaid-canvas-crisp svg {
+    min-width: var(--natural-width, 100%) !important;
+    max-width: none !important;
+  }
+
+  /* SVG foreignObject text overflow protection */
+  .mermaid-canvas svg foreignObject {
+    overflow: visible !important;
+  }
+  .mermaid-canvas svg foreignObject > div {
+    overflow: visible !important;
+    width: max-content !important;
+    min-width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+
+  /* Node base styles & smooth transitions */
+  .mermaid-canvas svg .node rect {
+    stroke-width: 2px !important;
+    filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.12));
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .mermaid-canvas svg .node polygon,
+  .mermaid-canvas svg .node circle,
+  .mermaid-canvas svg .node ellipse,
+  .mermaid-canvas svg .node path {
+    stroke-width: 2px !important;
+    filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.12));
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* Node group hover elevation & glow */
+  .mermaid-canvas svg .node {
+    cursor: pointer;
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), filter 0.2s ease;
+  }
+  .mermaid-canvas svg .node:hover {
+    filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.3)) brightness(1.1) !important;
+  }
+
+  /* Guaranteed Node Typography (High-Contrast in Dark & Light Modes) */
+  .mermaid-canvas svg .node text,
+  .mermaid-canvas svg .node .label,
+  .mermaid-canvas svg .node .nodeLabel,
+  .mermaid-canvas svg .node foreignObject div,
+  .mermaid-canvas svg .node foreignObject span,
+  .mermaid-canvas svg .node foreignObject p {
+    fill: #f8fafc !important;
+    color: #f8fafc !important;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    line-height: 1.4 !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+  .mermaid-canvas svg .node b,
+  .mermaid-canvas svg .node strong {
+    fill: #ffffff !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    font-size: 13.5px !important;
+  }
+  .mermaid-canvas svg .node small,
+  .mermaid-canvas svg .node sub {
+    display: block !important;
+    fill: #94a3b8 !important;
+    color: #94a3b8 !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    opacity: 0.95 !important;
+    margin-top: 2px !important;
+  }
+
+  /* Light Mode Typography */
+  .light .mermaid-canvas svg .node text,
+  .light .mermaid-canvas svg .node .label,
+  .light .mermaid-canvas svg .node .nodeLabel,
+  .light .mermaid-canvas svg .node foreignObject div,
+  .light .mermaid-canvas svg .node foreignObject span,
+  .light .mermaid-canvas svg .node foreignObject p {
+    fill: #0f172a !important;
+    color: #0f172a !important;
+  }
+  .light .mermaid-canvas svg .node b,
+  .light .mermaid-canvas svg .node strong {
+    fill: #020617 !important;
+    color: #020617 !important;
+  }
+  .light .mermaid-canvas svg .node small,
+  .light .mermaid-canvas svg .node sub {
+    fill: #475569 !important;
+    color: #475569 !important;
+  }
+
+  /* Subgraph Clusters (Frosted Glass Container Design & Guaranteed Visibility) */
+  .mermaid-canvas svg .cluster rect {
+    rx: 16px !important;
+    ry: 16px !important;
+    fill: rgba(38, 42, 47, 0.55) !important;
+    stroke: rgba(148, 163, 171, 0.35) !important;
+    stroke-width: 1.5px !important;
+    stroke-dasharray: 6 6 !important;
+  }
+  .light .mermaid-canvas svg .cluster rect {
+    fill: rgba(240, 242, 245, 0.8) !important;
+    stroke: rgba(148, 163, 171, 0.45) !important;
+  }
+  .mermaid-canvas svg .cluster text,
+  .mermaid-canvas svg .cluster .cluster-label,
+  .mermaid-canvas svg .cluster .cluster-label span,
+  .mermaid-canvas svg .cluster .cluster-label p,
+  .mermaid-canvas svg .cluster .nodeLabel,
+  .mermaid-canvas svg .cluster foreignObject div,
+  .mermaid-canvas svg .cluster foreignObject span,
+  .mermaid-canvas svg .cluster-title-guaranteed {
+    font-weight: 700 !important;
+    font-size: 13.5px !important;
+    fill: #f8fafc !important;
+    color: #f8fafc !important;
+    letter-spacing: 0.025em !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+  .light .mermaid-canvas svg .cluster text,
+  .light .mermaid-canvas svg .cluster .cluster-label,
+  .light .mermaid-canvas svg .cluster .cluster-label span,
+  .light .mermaid-canvas svg .cluster .cluster-label p,
+  .light .mermaid-canvas svg .cluster .nodeLabel,
+  .light .mermaid-canvas svg .cluster foreignObject div,
+  .light .mermaid-canvas svg .cluster foreignObject span,
+  .light .mermaid-canvas svg .cluster-title-guaranteed {
+    fill: #0f172a !important;
+    color: #0f172a !important;
+  }
+
+  /* Edge Paths & Connections */
+  .mermaid-canvas svg .edgePath path {
+    stroke: rgba(148, 163, 171, 0.65) !important;
+    stroke-width: 2px !important;
+    stroke-linecap: round !important;
+    stroke-linejoin: round !important;
+    transition: stroke 0.2s ease, stroke-width 0.2s ease;
+  }
+  .mermaid-canvas svg .edgePath:hover path {
+    stroke: var(--accent) !important;
+    stroke-width: 2.5px !important;
+  }
+  .mermaid-canvas svg marker path {
+    fill: rgba(148, 163, 171, 0.75) !important;
+    stroke: none !important;
+  }
+
+  /* Edge Pills / Badges & Typography (Guaranteed 100% Contrast) */
+  .mermaid-canvas svg .edgeLabel rect {
+    rx: 8px !important;
+    ry: 8px !important;
+    fill: #1e293b !important;
+    stroke: rgba(148, 163, 171, 0.4) !important;
+    stroke-width: 1px !important;
+  }
+  .mermaid-canvas svg .edgeLabel text,
+  .mermaid-canvas svg .edgeLabel tspan,
+  .mermaid-canvas svg .edgeLabel .label,
+  .mermaid-canvas svg .edgeLabel span,
+  .mermaid-canvas svg .edgeLabel p,
+  .mermaid-canvas svg .edge-text-guaranteed {
+    background-color: #1e293b !important;
+    border: 1px solid rgba(148, 163, 171, 0.4) !important;
+    border-radius: 8px !important;
+    padding: 2px 8px !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    fill: #f1f5f9 !important;
+    color: #f1f5f9 !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25) !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+  .light .mermaid-canvas svg .edgeLabel rect {
+    fill: #ffffff !important;
+    stroke: rgba(148, 163, 171, 0.4) !important;
+  }
+  .light .mermaid-canvas svg .edgeLabel text,
+  .light .mermaid-canvas svg .edgeLabel tspan,
+  .light .mermaid-canvas svg .edgeLabel .label,
+  .light .mermaid-canvas svg .edgeLabel span,
+  .light .mermaid-canvas svg .edgeLabel p,
+  .light .mermaid-canvas svg .edge-text-guaranteed {
+    background-color: #ffffff !important;
+    border: 1px solid rgba(148, 163, 171, 0.4) !important;
+    fill: #0f172a !important;
+    color: #0f172a !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+  }
+
+  /* Role-Based Auto-Themes (Dark Mode Default) */
+  .mermaid-canvas svg .node.theme-client rect,
+  .mermaid-canvas svg .node.theme-client polygon,
+  .mermaid-canvas svg .node.theme-client circle,
+  .mermaid-canvas svg .node.theme-client ellipse,
+  .mermaid-canvas svg .node.theme-client path {
+    fill: rgba(14, 165, 233, 0.16) !important;
+    stroke: #0ea5e9 !important;
+  }
+  .mermaid-canvas svg .node.theme-security rect,
+  .mermaid-canvas svg .node.theme-security polygon,
+  .mermaid-canvas svg .node.theme-security circle,
+  .mermaid-canvas svg .node.theme-security ellipse,
+  .mermaid-canvas svg .node.theme-security path {
+    fill: rgba(245, 158, 11, 0.16) !important;
+    stroke: #f59e0b !important;
+  }
+  .mermaid-canvas svg .node.theme-gateway rect,
+  .mermaid-canvas svg .node.theme-gateway polygon,
+  .mermaid-canvas svg .node.theme-gateway circle,
+  .mermaid-canvas svg .node.theme-gateway ellipse,
+  .mermaid-canvas svg .node.theme-gateway path {
+    fill: rgba(20, 184, 166, 0.16) !important;
+    stroke: #14b8a6 !important;
+  }
+  .mermaid-canvas svg .node.theme-core rect,
+  .mermaid-canvas svg .node.theme-core polygon,
+  .mermaid-canvas svg .node.theme-core circle,
+  .mermaid-canvas svg .node.theme-core ellipse,
+  .mermaid-canvas svg .node.theme-core path {
+    fill: rgba(99, 102, 241, 0.16) !important;
+    stroke: #6366f1 !important;
+  }
+  .mermaid-canvas svg .node.theme-storage rect,
+  .mermaid-canvas svg .node.theme-storage polygon,
+  .mermaid-canvas svg .node.theme-storage circle,
+  .mermaid-canvas svg .node.theme-storage ellipse,
+  .mermaid-canvas svg .node.theme-storage path {
+    fill: rgba(16, 185, 129, 0.16) !important;
+    stroke: #10b981 !important;
+  }
+  .mermaid-canvas svg .node.theme-queue rect,
+  .mermaid-canvas svg .node.theme-queue polygon,
+  .mermaid-canvas svg .node.theme-queue circle,
+  .mermaid-canvas svg .node.theme-queue ellipse,
+  .mermaid-canvas svg .node.theme-queue path {
+    fill: rgba(217, 70, 239, 0.16) !important;
+    stroke: #d946ef !important;
+  }
+  .mermaid-canvas svg .node.theme-decision polygon,
+  .mermaid-canvas svg .node.theme-decision rect,
+  .mermaid-canvas svg .node.theme-decision circle,
+  .mermaid-canvas svg .node.theme-decision ellipse,
+  .mermaid-canvas svg .node.theme-decision path {
+    fill: rgba(236, 72, 153, 0.16) !important;
+    stroke: #ec4899 !important;
+  }
+  .mermaid-canvas svg .node.theme-success rect,
+  .mermaid-canvas svg .node.theme-success polygon,
+  .mermaid-canvas svg .node.theme-success circle,
+  .mermaid-canvas svg .node.theme-success ellipse,
+  .mermaid-canvas svg .node.theme-success path {
+    fill: rgba(34, 197, 94, 0.20) !important;
+    stroke: #22c55e !important;
+    stroke-width: 2.5px !important;
+  }
+  .mermaid-canvas svg .node.theme-danger rect,
+  .mermaid-canvas svg .node.theme-danger polygon,
+  .mermaid-canvas svg .node.theme-danger circle,
+  .mermaid-canvas svg .node.theme-danger ellipse,
+  .mermaid-canvas svg .node.theme-danger path {
+    fill: rgba(239, 68, 68, 0.18) !important;
+    stroke: #ef4444 !important;
+  }
+
+  /* Role-Based Auto-Themes (Light Mode) */
+  .light .mermaid-canvas svg .node.theme-client rect,
+  .light .mermaid-canvas svg .node.theme-client polygon,
+  .light .mermaid-canvas svg .node.theme-client circle,
+  .light .mermaid-canvas svg .node.theme-client ellipse,
+  .light .mermaid-canvas svg .node.theme-client path {
+    fill: #f0f9ff !important;
+    stroke: #0284c7 !important;
+  }
+  .light .mermaid-canvas svg .node.theme-security rect,
+  .light .mermaid-canvas svg .node.theme-security polygon,
+  .light .mermaid-canvas svg .node.theme-security circle,
+  .light .mermaid-canvas svg .node.theme-security ellipse,
+  .light .mermaid-canvas svg .node.theme-security path {
+    fill: #fffbeb !important;
+    stroke: #d97706 !important;
+  }
+  .light .mermaid-canvas svg .node.theme-gateway rect,
+  .light .mermaid-canvas svg .node.theme-gateway polygon,
+  .light .mermaid-canvas svg .node.theme-gateway circle,
+  .light .mermaid-canvas svg .node.theme-gateway ellipse,
+  .light .mermaid-canvas svg .node.theme-gateway path {
+    fill: #f0fdfa !important;
+    stroke: #0d9488 !important;
+  }
+  .light .mermaid-canvas svg .node.theme-core rect,
+  .light .mermaid-canvas svg .node.theme-core polygon,
+  .light .mermaid-canvas svg .node.theme-core circle,
+  .light .mermaid-canvas svg .node.theme-core ellipse,
+  .light .mermaid-canvas svg .node.theme-core path {
+    fill: #eef2ff !important;
+    stroke: #4f46e5 !important;
+  }
+  .light .mermaid-canvas svg .node.theme-storage rect,
+  .light .mermaid-canvas svg .node.theme-storage polygon,
+  .light .mermaid-canvas svg .node.theme-storage circle,
+  .light .mermaid-canvas svg .node.theme-storage ellipse,
+  .light .mermaid-canvas svg .node.theme-storage path {
+    fill: #ecfdf5 !important;
+    stroke: #059669 !important;
+  }
+  .light .mermaid-canvas svg .node.theme-queue rect,
+  .light .mermaid-canvas svg .node.theme-queue polygon,
+  .light .mermaid-canvas svg .node.theme-queue circle,
+  .light .mermaid-canvas svg .node.theme-queue ellipse,
+  .light .mermaid-canvas svg .node.theme-queue path {
+    fill: #fdf4ff !important;
+    stroke: #c026d3 !important;
+  }
+  .light .mermaid-canvas svg .node.theme-decision polygon,
+  .light .mermaid-canvas svg .node.theme-decision rect,
+  .light .mermaid-canvas svg .node.theme-decision circle,
+  .light .mermaid-canvas svg .node.theme-decision ellipse,
+  .light .mermaid-canvas svg .node.theme-decision path {
+    fill: #fdf2f8 !important;
+    stroke: #db2777 !important;
+  }
+  .light .mermaid-canvas svg .node.theme-success rect,
+  .light .mermaid-canvas svg .node.theme-success polygon,
+  .light .mermaid-canvas svg .node.theme-success circle,
+  .light .mermaid-canvas svg .node.theme-success ellipse,
+  .light .mermaid-canvas svg .node.theme-success path {
+    fill: #f0fdf4 !important;
+    stroke: #16a34a !important;
+  }
+  .light .mermaid-canvas svg .node.theme-danger rect,
+  .light .mermaid-canvas svg .node.theme-danger polygon,
+  .light .mermaid-canvas svg .node.theme-danger circle,
+  .light .mermaid-canvas svg .node.theme-danger ellipse,
+  .light .mermaid-canvas svg .node.theme-danger path {
+    fill: #fef2f2 !important;
+    stroke: #dc2626 !important;
+  }
+
+  /* Suppress any rogue Mermaid syntax error banners injected into document.body */
+  body > [id^="dmermaid"],
+  body > [id^="mermaid_error"],
+  body > .mermaid-error,
+  div[id^="dmermaid"] {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+}
+
+
