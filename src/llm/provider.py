@@ -212,8 +212,10 @@ class GroqProvider(LLMProvider):
         reserved: bool = False,
         **kwargs
     ) -> Generator[Dict[str, Any], None, None]:
+        import time
         temp = temperature if temperature is not None else 0.2
-        max_tok = max_tokens if max_tokens is not None else 2048
+        # Use an optimal max_tokens to prevent exceeding Groq Free Tier OTPM (1000 tokens/min limit)
+        max_tok = min(max_tokens, 750) if max_tokens is not None else 750
 
         # 1. Local Data Masking (Sanitizes sensitive entities locally)
         masked_prompt, reverse_map = self.masker.mask(prompt)
@@ -223,28 +225,59 @@ class GroqProvider(LLMProvider):
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        payload = {
-            "model": self.model,
-            "messages": [
-                {"role": "user", "content": masked_prompt}
-            ],
-            "max_tokens": max_tok,
-            "temperature": temp,
-            "stream": True,
-        }
+
+        models_to_try = [self.model]
+        if "qwen" in self.model:
+            models_to_try.append("openai/gpt-oss-20b")
+        elif "gpt-oss-20b" in self.model:
+            models_to_try.append("qwen/qwen3.8-27b")
+
+        response = None
+        response_ctx = None
+        last_error = ""
 
         try:
             with httpx.Client(timeout=45.0) as client:
-                with client.stream("POST", self.endpoint, headers=headers, json=payload) as response:
-                    if response.status_code != 200:
-                        err_text = response.read().decode("utf-8", errors="ignore")
-                        yield {
-                            "type": "error",
-                            "error": f"Groq API error ({response.status_code}): {err_text}",
-                            "status": response.status_code
-                        }
-                        return
+                for attempt, current_model in enumerate(models_to_try):
+                    current_max = min(max_tok, 500) if attempt > 0 else max_tok
+                    payload = {
+                        "model": current_model,
+                        "messages": [
+                            {"role": "user", "content": masked_prompt}
+                        ],
+                        "max_tokens": current_max,
+                        "temperature": temp,
+                        "stream": True,
+                    }
 
+                    if attempt > 0:
+                        time.sleep(1.5)
+
+                    ctx = client.stream("POST", self.endpoint, headers=headers, json=payload)
+                    resp = ctx.__enter__()
+                    if resp.status_code == 200:
+                        response = resp
+                        response_ctx = ctx
+                        break
+                    elif resp.status_code == 429:
+                        last_error = resp.read().decode("utf-8", errors="ignore")
+                        ctx.__exit__(None, None, None)
+                        time.sleep(2.0)
+                        continue
+                    else:
+                        last_error = resp.read().decode("utf-8", errors="ignore")
+                        ctx.__exit__(None, None, None)
+                        break
+
+                if response is None:
+                    yield {
+                        "type": "error",
+                        "error": "Groq model token limit reached momentarily. Please wait a few seconds and retry.",
+                        "status": 429
+                    }
+                    return
+
+                try:
                     for line in response.iter_lines():
                         if not line:
                             continue
@@ -272,6 +305,9 @@ class GroqProvider(LLMProvider):
                         yield {"type": "text", "content": leftover}
 
                     yield {"type": "status", "status": "COMPLETED"}
+                finally:
+                    if response_ctx:
+                        response_ctx.__exit__(None, None, None)
         except Exception as e:
             yield {"type": "error", "error": f"Groq connection error: {str(e)}", "status": 500}
 
