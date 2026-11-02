@@ -226,22 +226,19 @@ class GroqProvider(LLMProvider):
             "Content-Type": "application/json",
         }
 
-        models_to_try = [self.model]
-        if "qwen" in self.model:
-            models_to_try.append("openai/gpt-oss-20b")
-        elif "gpt-oss-20b" in self.model:
-            models_to_try.append("qwen/qwen3.8-27b")
-
         response = None
         response_ctx = None
         last_error = ""
 
         try:
             with httpx.Client(timeout=45.0) as client:
-                for attempt, current_model in enumerate(models_to_try):
-                    current_max = min(max_tok, 500) if attempt > 0 else max_tok
+                # Strictly use only user's chosen Qwen model (preserves model integrity and personality)
+                max_attempts = 3
+                for attempt in range(max_attempts):
+                    # For retries, reduce max_tokens slightly to fit inside the recharging token bucket
+                    current_max = min(max_tok, 450) if attempt > 0 else max_tok
                     payload = {
-                        "model": current_model,
+                        "model": self.model,
                         "messages": [
                             {"role": "user", "content": masked_prompt}
                         ],
@@ -251,7 +248,8 @@ class GroqProvider(LLMProvider):
                     }
 
                     if attempt > 0:
-                        time.sleep(1.5)
+                        # Wait for token bucket recharge (Groq resets tokens every 2-3 seconds)
+                        time.sleep(2.5)
 
                     ctx = client.stream("POST", self.endpoint, headers=headers, json=payload)
                     resp = ctx.__enter__()
@@ -262,7 +260,6 @@ class GroqProvider(LLMProvider):
                     elif resp.status_code == 429:
                         last_error = resp.read().decode("utf-8", errors="ignore")
                         ctx.__exit__(None, None, None)
-                        time.sleep(2.0)
                         continue
                     else:
                         last_error = resp.read().decode("utf-8", errors="ignore")
