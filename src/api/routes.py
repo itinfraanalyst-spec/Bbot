@@ -31,14 +31,15 @@ def get_chat_service() -> ChatService:
         with _provider_lock:
             if _provider is None:
                 groq_key = getattr(settings, "GROQ_API_KEY", "") or os.environ.get("GROQ_API_KEY", "")
-                if groq_key:
+                llm_env = os.environ.get("LLM_PROVIDER", "").lower()
+                from src.llm.provider import Llama, GroqProvider, QwenProvider
+                if groq_key or llm_env == "groq" or Llama is None:
                     try:
-                        from src.llm.provider import GroqProvider
                         _provider = GroqProvider()
                         print("[PROVIDER] Initialized High-Speed GroqProvider with Local Data Masking.")
                     except Exception as e:
-                        print(f"[PROVIDER WARNING] Failed to initialize GroqProvider ({e}), falling back to QwenProvider.")
-                        _provider = QwenProvider()
+                        print(f"[PROVIDER WARNING] Failed to initialize GroqProvider ({e}).")
+                        _provider = GroqProvider()
                 else:
                     _provider = QwenProvider()
     return ChatService(_provider)

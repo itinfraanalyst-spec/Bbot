@@ -15,6 +15,12 @@ class LLMProvider(ABC):
     def health_check(self) -> bool:
         pass
 
+    def try_reserve_capacity(self) -> bool:
+        return True
+
+    def release_capacity(self) -> None:
+        pass
+
 
 import threading
 
@@ -190,6 +196,12 @@ class GroqProvider(LLMProvider):
             enable_masking = getattr(settings, "ENABLE_DATA_MASKING", True)
         self.masker = DataMasker(enabled=enable_masking)
         self.endpoint = "https://api.groq.com/openai/v1/chat/completions"
+
+    def try_reserve_capacity(self) -> bool:
+        return True
+
+    def release_capacity(self) -> None:
+        pass
 
     def generate_stream(
         self,
