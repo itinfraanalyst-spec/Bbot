@@ -297,10 +297,16 @@ export function ChatInput({ onSendMessage, disabled, onUploadFile, isUploading, 
           accept=".pdf,.docx,.xlsx,.csv,.txt,.md"
         />
         <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isUploading || disabled}
-          title="Attach Document"
-          className="text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] disabled:opacity-50 transition-colors shrink-0 mb-1 rounded-full w-10 h-10 md:w-9 md:h-9 flex items-center justify-center border-none bg-transparent cursor-pointer"
+          onClick={() => {
+            if (isNewChat) return;
+            fileInputRef.current?.click();
+          }}
+          disabled={isUploading || disabled || isNewChat}
+          title={isNewChat ? "Say Hello first to start conversation and upload documents" : "Attach Document"}
+          className={clsx(
+            "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] transition-colors shrink-0 mb-1 rounded-full w-10 h-10 md:w-9 md:h-9 flex items-center justify-center border-none bg-transparent",
+            isNewChat ? "opacity-35 cursor-not-allowed hover:bg-transparent" : "cursor-pointer"
+          )}
         >
           {isUploading ? <Loader2 size={18} className="animate-spin" /> : <Paperclip size={18} className="rotate-45" />}
         </button>
@@ -309,8 +315,8 @@ export function ChatInput({ onSendMessage, disabled, onUploadFile, isUploading, 
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={disabled || isUploading || isNewChat}
-          placeholder={isNewChat ? (t('clickToStart') || "Click 'Say Hello 👋' to start...") : (disabled || isUploading) ? t('thinking') : t('inputPlaceholder')}
+          disabled={disabled || isUploading}
+          placeholder={isNewChat ? (t('clickToStart') || "Say 'Hello' or click 'Say Hello 👋' to start...") : (disabled || isUploading) ? t('thinking') : t('inputPlaceholder')}
           className="flex-1 max-h-[150px] bg-transparent text-[var(--text-primary)] placeholder:text-[var(--text-muted)] py-3 px-0 outline-none resize-none overflow-y-auto leading-relaxed border-none disabled:opacity-75 disabled:cursor-not-allowed"
           rows={1}
         />
