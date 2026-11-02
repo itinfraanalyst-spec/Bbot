@@ -8,10 +8,6 @@ RUN npm run build
 FROM python:3.12-slim
 WORKDIR /app
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential cmake \
-    && rm -rf /var/lib/apt/lists/*
-
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -27,8 +23,8 @@ ENV COOKIE_SECURE=false
 ENV ALLOWED_ORIGINS=*
 ENV SINGLE_WORKER_CONFIRMED=true
 ENV JWT_SECRET=trpw-default-super-secure-jwt-secret-key-32chars-minimum
+ENV LLM_PROVIDER=groq
 
 EXPOSE 8000
 
-CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
-
+CMD ["sh", "-c", "uvicorn src.api.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]
