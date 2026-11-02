@@ -28,20 +28,22 @@ class NomicEmbeddingProvider(EmbeddingProvider):
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
         # Single-chunk mitigation: gpt4all CPU bindings are highly inefficient
         # and prone to deadlocks when passing large arrays on Windows.
-        # We process them one by one to ensure maximum stability and better throughput.
+        # We acquire the lock per text and yield slightly to allow query embeddings to preempt.
         if not texts:
             return []
             
-        with _LOCAL_EMBEDDING_LOCK:
-            all_embeddings = []
-            for text in texts:
+        all_embeddings = []
+        for text in texts:
+            with _LOCAL_EMBEDDING_LOCK:
                 result = self.embed.text(
                     texts=[text],
                     model="nomic-embed-text-v1.5",
                     task_type="search_document",
                     inference_mode="local"
                 )
-                all_embeddings.append(result['embeddings'][0])
+            all_embeddings.append(result['embeddings'][0])
+            import time
+            time.sleep(0.005)
             
         return all_embeddings
 

@@ -250,9 +250,14 @@ class RetrievalService:
                 "overview of document", "brief overview of the document", "entire document",
                 "all documents", "all docs", "document outline", "executive summary"
             ]
-            broad_words = ["summary", "summarize", "overview", "outline", "table of contents"]
+            global_summary_phrases.extend([
+                "brief of the doc", "brief of document", "brief the document", "brief the doc",
+                "brief of doc", "brief this doc", "give me a brief", "brief summary",
+                "explain the document", "tell me about the document", "what is this document about"
+            ])
+            broad_words = ["summary", "summarize", "overview", "outline", "table of contents", "brief", "gist", "synopsis"]
             has_broad_intent = any(p in query_lower for p in global_summary_phrases) or (
-                any(w in query_lower.split() for w in broad_words) and len(query_lower.split()) <= 4
+                any(w in query_lower.split() for w in broad_words) and len(query_lower.split()) <= 6
             )
             is_summary_query = has_broad_intent
             

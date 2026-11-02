@@ -147,6 +147,43 @@ class DocumentService:
             try:
                 from src.api.routes import get_chat_service
                 chat_service = get_chat_service()
+                from src.llm.provider import GroqProvider
+                is_cloud_provider = (
+                    isinstance(chat_service.provider, GroqProvider)
+                    or bool(os.environ.get("GROQ_API_KEY") or getattr(settings, "GROQ_API_KEY", ""))
+                )
+                if is_cloud_provider:
+                    # Cloud API providers (e.g. Groq Free Tier) enforce strict OTPM rate limits.
+                    # Running 10-15 background LLM calls exhausts the token quota and starves interactive chat.
+                    # Instead, generate a fast structural overview from document sections without consuming LLM API tokens.
+                    preview_chunks = chunks[:6]
+                    header_lines = [
+                        f"[Page {c.get('page_start', 1)}]: {c['text'][:350].strip()}..."
+                        for c in preview_chunks
+                    ]
+                    final_summary = (
+                        f"### Document Overview: {filename} (Total Pages: {page_count})\n\n"
+                        + "\n\n".join(header_lines)
+                    )
+                    self.repo.update_document_summary(doc_id, final_summary)
+                    if settings.RAG_ENABLED and self.retrieval_service and self.retrieval_service.vector_store:
+                        try:
+                            summary_emb = self.retrieval_service.embedding_provider.embed_texts([final_summary])
+                            self.retrieval_service.vector_store.collection.add(
+                                ids=[f"{doc_id}_summary"],
+                                embeddings=summary_emb,
+                                documents=[final_summary],
+                                metadatas=[{
+                                    "doc_id": doc_id,
+                                    "chunk_index": -1,
+                                    "page_start": 1,
+                                    "page_end": page_count if 'page_count' in locals() else 1,
+                                    "page_number": 1
+                                }]
+                            )
+                        except Exception:
+                            pass
+                    return {"status": "SUCCESS", "document_id": doc_id}
                 
                 # We group text into ~8000 character blocks to reduce prompt evaluation time per map step,
                 # which allows the background task to yield the LLM lock to foreground chat requests more frequently.

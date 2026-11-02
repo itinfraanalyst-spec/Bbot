@@ -214,8 +214,9 @@ class GroqProvider(LLMProvider):
     ) -> Generator[Dict[str, Any], None, None]:
         import time
         temp = temperature if temperature is not None else 0.2
-        # Use an optimal max_tokens to prevent exceeding Groq Free Tier OTPM (1000 tokens/min limit)
-        max_tok = min(max_tokens, 750) if max_tokens is not None else 750
+        # Groq Free Tier has a strict 1000 OTPM (output tokens/min) limit.
+        # Defaulting to 500 max_tokens guarantees we stay safely within 1000 OTPM even during active conversations.
+        max_tok = min(max_tokens, 500) if max_tokens is not None else 500
 
         # 1. Local Data Masking (Sanitizes sensitive entities locally)
         masked_prompt, reverse_map = self.masker.mask(prompt)
@@ -233,10 +234,16 @@ class GroqProvider(LLMProvider):
         try:
             with httpx.Client(timeout=45.0) as client:
                 # Strictly use only user's chosen Qwen model (preserves model integrity and personality)
-                max_attempts = 3
+                max_attempts = 4
                 for attempt in range(max_attempts):
-                    # For retries, reduce max_tokens slightly to fit inside the recharging token bucket
-                    current_max = min(max_tok, 450) if attempt > 0 else max_tok
+                    # For retries, step down max_tokens to fit inside the recharging token bucket
+                    if attempt == 0:
+                        current_max = max_tok
+                    elif attempt == 1:
+                        current_max = min(max_tok, 350)
+                    else:
+                        current_max = min(max_tok, 250)
+
                     payload = {
                         "model": self.model,
                         "messages": [
@@ -248,8 +255,8 @@ class GroqProvider(LLMProvider):
                     }
 
                     if attempt > 0:
-                        # Wait for token bucket recharge (Groq resets tokens every 2-3 seconds)
-                        time.sleep(2.5)
+                        # Wait for token bucket recharge (Groq resets tokens progressively)
+                        time.sleep(2.5 * attempt)
 
                     ctx = client.stream("POST", self.endpoint, headers=headers, json=payload)
                     resp = ctx.__enter__()
