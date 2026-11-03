@@ -8,6 +8,7 @@ import { useDocuments } from '../hooks/useDocuments';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useConversations } from '../hooks/useConversations';
 import { LanguageSelector } from '../components/chat/LanguageSelector';
 import { Sun, Moon, HelpCircle, Menu, Sparkles, Languages, Loader2 } from 'lucide-react';
 
@@ -21,6 +22,8 @@ export function ChatPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isTranslatingAll, setIsTranslatingAll] = useState(false);
+  const [explicitNewChat, setExplicitNewChat] = useState(false);
+  const { conversations } = useConversations();
   const { messages, setMessages, isGenerating, sendMessage, stopGeneration, regenerateMessage, currentConversationId } = useChat(selectedConvId, '/api/chat', conversationStorageKey);
   const { documents, uploadDocument, isUploading, uploadError, detachDocument } = useDocuments(currentConversationId, (newId) => {
     setSelectedConvId(newId);
@@ -29,8 +32,15 @@ export function ChatPage() {
   const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
-    setSelectedConvId(userId ? localStorage.getItem(conversationStorageKey) : null);
-  }, [conversationStorageKey, userId]);
+    if (!userId) return;
+    const storedId = localStorage.getItem(conversationStorageKey);
+    if (storedId) {
+      setSelectedConvId(storedId);
+    } else if (!explicitNewChat && conversations.length > 0 && !selectedConvId) {
+      // Automatically reopen and restore the user's latest conversation!
+      setSelectedConvId(conversations[0].id);
+    }
+  }, [conversationStorageKey, userId, conversations, selectedConvId, explicitNewChat]);
 
   useEffect(() => {
     if (!isHelpOpen) return;
@@ -42,6 +52,11 @@ export function ChatPage() {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isHelpOpen]);
+
+  const handleSendMessage = (text: string) => {
+    setExplicitNewChat(false);
+    sendMessage(text);
+  };
 
   const handleRetry = (msg: any) => {
     const idx = messages.findIndex(m => m.id === msg.id);
@@ -135,10 +150,12 @@ export function ChatPage() {
         currentConversationId={currentConversationId}
         onSelectConversation={(id) => {
           setSelectedConvId(id);
+          setExplicitNewChat(false);
           setIsSidebarOpen(false);
         }}
         onNewConversation={() => {
           setSelectedConvId(null);
+          setExplicitNewChat(true);
           localStorage.removeItem(conversationStorageKey);
           setIsSidebarOpen(false);
         }}
@@ -283,14 +300,14 @@ export function ChatPage() {
           onRetry={handleRetry}
           onEdit={regenerateMessage}
           documentsCount={documents.length}
-          onSuggestedPrompt={sendMessage}
+          onSuggestedPrompt={handleSendMessage}
           starterQuestions={[t('starterGreeting')]}
         />
         
         {/* Input & Docs Area */}
         <div className="bg-[var(--bg-primary)] flex flex-col shrink-0 pb-4 relative">
           <ChatInput 
-            onSendMessage={sendMessage} 
+            onSendMessage={handleSendMessage} 
             disabled={isGenerating} 
             onUploadFile={uploadDocument}
             isUploading={isUploading}

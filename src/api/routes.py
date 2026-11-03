@@ -114,7 +114,14 @@ def create_conversation(req: CreateConversationRequest, repo: ConversationReposi
 
 @router.get("/conversations")
 def list_conversations(repo: ConversationRepository = Depends(get_repository), current_user: dict = Depends(get_current_user)):
-    return {"conversations": repo.get_conversations_by_user(current_user.get("id"))}
+    user_id = current_user.get("id")
+    convs = repo.get_conversations_by_user(user_id)
+    if not convs and current_user.get("is_admin"):
+        with get_connection() as conn:
+            conn.execute("UPDATE conversations SET user_id = ? WHERE user_id IS NULL OR user_id = 'admin-default-id'", (user_id,))
+            conn.commit()
+        convs = repo.get_conversations_by_user(user_id)
+    return {"conversations": convs}
 
 @router.get("/conversations/{conversation_id}")
 def get_conversation(conversation_id: str, repo: ConversationRepository = Depends(get_repository), current_user: dict = Depends(get_current_user)):
