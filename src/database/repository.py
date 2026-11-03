@@ -4,12 +4,12 @@ from typing import List, Dict, Optional
 from src.database.connection import get_connection
 
 class ConversationRepository:
-    def create_conversation(self, title: str = "New Conversation", user_id: str = None) -> str:
+    def create_conversation(self, title: str = "New Conversation", user_id: str = None, project_id: str = None) -> str:
         conv_id = str(uuid.uuid4())
         with get_connection() as conn:
             conn.execute(
-                "INSERT INTO conversations (id, title, user_id) VALUES (?, ?, ?)", 
-                (conv_id, title, user_id)
+                "INSERT INTO conversations (id, title, user_id, project_id) VALUES (?, ?, ?, ?)", 
+                (conv_id, title, user_id, project_id)
             )
             conn.commit()
         return conv_id
@@ -67,6 +67,135 @@ class ConversationRepository:
         with get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+
+    # --- Project & Thread Management Methods ---
+    def create_project(self, user_id: str, name: str, description: str = "", progress: int = 0, status: str = "IN_PROGRESS", color: str = "#d17b24") -> Dict:
+        project_id = str(uuid.uuid4())
+        now = datetime.datetime.utcnow().isoformat()
+        with get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO projects (id, user_id, name, description, progress, status, color, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (project_id, user_id, name, description, progress, status, color, now, now)
+            )
+            conn.commit()
+        return self.get_project(project_id, user_id)
+
+    def get_project(self, project_id: str, user_id: str) -> Optional[Dict]:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT p.*,
+                       COUNT(c.id) as thread_count,
+                       MAX(c.updated_at) as last_thread_activity
+                FROM projects p
+                LEFT JOIN conversations c ON c.project_id = p.id
+                WHERE p.id = ? AND p.user_id = ?
+                GROUP BY p.id
+                """,
+                (project_id, user_id)
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            res = dict(row)
+            cursor.execute(
+                "SELECT * FROM conversations WHERE project_id = ? AND user_id = ? ORDER BY is_pinned DESC, updated_at DESC",
+                (project_id, user_id)
+            )
+            res["threads"] = [dict(r) for r in cursor.fetchall()]
+            return res
+
+    def list_projects(self, user_id: str) -> List[Dict]:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT p.*,
+                       COUNT(c.id) as thread_count,
+                       MAX(c.updated_at) as last_thread_activity
+                FROM projects p
+                LEFT JOIN conversations c ON c.project_id = p.id
+                WHERE p.user_id = ?
+                GROUP BY p.id
+                ORDER BY p.updated_at DESC
+                """,
+                (user_id,)
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def update_project(self, project_id: str, user_id: str, **kwargs) -> Optional[Dict]:
+        allowed = {"name", "description", "progress", "status", "color"}
+        updates = {k: v for k, v in kwargs.items() if k in allowed and v is not None}
+        if not updates:
+            return self.get_project(project_id, user_id)
+
+        updates["updated_at"] = datetime.datetime.utcnow().isoformat()
+        set_clauses = [f"{k} = ?" for k in updates.keys()]
+        values = list(updates.values()) + [project_id, user_id]
+
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"UPDATE projects SET {', '.join(set_clauses)} WHERE id = ? AND user_id = ?",
+                values
+            )
+            conn.commit()
+            if cursor.rowcount == 0:
+                return None
+        return self.get_project(project_id, user_id)
+
+    def delete_project(self, project_id: str, user_id: str) -> bool:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE conversations SET project_id = NULL WHERE project_id = ? AND user_id = ?",
+                (project_id, user_id)
+            )
+            cursor.execute(
+                "DELETE FROM projects WHERE id = ? AND user_id = ?",
+                (project_id, user_id)
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def assign_conversation_project(self, conversation_id: str, project_id: Optional[str], user_id: str) -> bool:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            if project_id:
+                cursor.execute("SELECT id FROM projects WHERE id = ? AND user_id = ?", (project_id, user_id))
+                if not cursor.fetchone():
+                    return False
+            cursor.execute(
+                "UPDATE conversations SET project_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?",
+                (project_id, conversation_id, user_id)
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def update_conversation_progress(self, conversation_id: str, user_id: str, progress: Optional[int] = None, status: Optional[str] = None) -> bool:
+        updates = {}
+        if progress is not None:
+            updates["progress"] = progress
+        if status is not None:
+            updates["status"] = status
+        if not updates:
+            return True
+        updates["updated_at"] = datetime.datetime.utcnow().isoformat()
+        set_clauses = [f"{k} = ?" for k in updates.keys()]
+        values = list(updates.values()) + [conversation_id, user_id]
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"UPDATE conversations SET {', '.join(set_clauses)} WHERE id = ? AND user_id = ?",
+                values
+            )
             conn.commit()
             return cursor.rowcount > 0
 

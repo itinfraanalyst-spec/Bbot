@@ -101,7 +101,7 @@ export function useChat(initialConversationId: string | null | undefined, chatEn
     });
   }, []);
 
-  const sendMessage = useCallback(async (text: string, options?: { language?: string; originalText?: string }) => {
+  const sendMessage = useCallback(async (text: string, options?: { language?: string; originalText?: string; projectId?: string }) => {
     if (!text.trim() || isGenerating) return;
 
     const userMsg: Message = { 
@@ -136,6 +136,7 @@ export function useChat(initialConversationId: string | null | undefined, chatEn
           message: text,
           conversation_id: conversationId,
           language: selectedLanguage,
+          project_id: options?.projectId || undefined,
         })
       });
 

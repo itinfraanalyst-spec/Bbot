@@ -6,6 +6,9 @@ export interface Conversation {
   created_at: string;
   updated_at: string;
   is_pinned: boolean;
+  project_id?: string | null;
+  progress?: number;
+  status?: string;
 }
 
 export function useConversations() {
@@ -29,7 +32,7 @@ export function useConversations() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await fetch(`/api/conversations/${id}`, {
-      credentials: "include",
+        credentials: "include",
         method: 'DELETE'
       });
       if (!res.ok) throw new Error('Failed to delete');
@@ -38,13 +41,14 @@ export function useConversations() {
       queryClient.setQueryData(['conversations'], (old: Conversation[] | undefined) => 
         old?.filter(c => c.id !== id)
       );
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
     }
   });
 
   const renameMutation = useMutation({
     mutationFn: async ({ id, title }: { id: string, title: string }) => {
       const res = await fetch(`/api/conversations/${id}/title`, {
-      credentials: "include",
+        credentials: "include",
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json'
@@ -64,7 +68,7 @@ export function useConversations() {
     mutationFn: async ({ id, isPinned }: { id: string, isPinned: boolean }) => {
       const action = isPinned ? 'unpin' : 'pin';
       const res = await fetch(`/api/conversations/${id}/${action}`, {
-      credentials: "include",
+        credentials: "include",
         method: 'POST'
       });
       if (!res.ok) throw new Error(`Failed to ${action}`);
@@ -76,6 +80,49 @@ export function useConversations() {
     }
   });
 
+  const assignProjectMutation = useMutation({
+    mutationFn: async ({ conversationId, projectId }: { conversationId: string, projectId: string | null }) => {
+      const res = await fetch(`/api/conversations/${conversationId}/project`, {
+        credentials: "include",
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: projectId })
+      });
+      if (!res.ok) throw new Error('Failed to assign project');
+      return res.json();
+    },
+    onSuccess: (_, { conversationId, projectId }) => {
+      queryClient.setQueryData(['conversations'], (old: Conversation[] | undefined) =>
+        old?.map(c => c.id === conversationId ? { ...c, project_id: projectId } : c)
+      );
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+    }
+  });
+
+  const updateProgressMutation = useMutation({
+    mutationFn: async ({ conversationId, progress, status }: { conversationId: string, progress?: number, status?: string }) => {
+      const res = await fetch(`/api/conversations/${conversationId}/progress`, {
+        credentials: "include",
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ progress, status })
+      });
+      if (!res.ok) throw new Error('Failed to update progress');
+      return res.json();
+    },
+    onSuccess: (_, { conversationId, progress, status }) => {
+      queryClient.setQueryData(['conversations'], (old: Conversation[] | undefined) =>
+        old?.map(c => c.id === conversationId ? { 
+          ...c, 
+          progress: progress !== undefined ? progress : c.progress,
+          status: status !== undefined ? status : c.status
+        } : c)
+      );
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    }
+  });
+
   return {
     conversations,
     isLoading,
@@ -84,5 +131,7 @@ export function useConversations() {
     deleteConversation: deleteMutation.mutate,
     renameConversation: renameMutation.mutate,
     togglePin: togglePinMutation.mutate,
+    assignProject: assignProjectMutation.mutateAsync,
+    updateProgress: updateProgressMutation.mutateAsync,
   };
 }

@@ -10,7 +10,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useConversations } from '../hooks/useConversations';
 import { LanguageSelector } from '../components/chat/LanguageSelector';
-import { Sun, Moon, HelpCircle, Menu, Sparkles, Languages, Loader2 } from 'lucide-react';
+import { useProjects } from '../hooks/useProjects';
+import { Sun, Moon, HelpCircle, Menu, Sparkles, Languages, Loader2, Folder } from 'lucide-react';
 
 export function ChatPage() {
   const { t, language, currentLanguageOption } = useLanguage();
@@ -23,7 +24,12 @@ export function ChatPage() {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isTranslatingAll, setIsTranslatingAll] = useState(false);
   const [explicitNewChat, setExplicitNewChat] = useState(false);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const { conversations } = useConversations();
+  const { projects } = useProjects();
+  const activeConversation = conversations.find(c => c.id === currentConversationId);
+  const currentProjectId = activeConversation?.project_id || activeProjectId;
+  const currentProject = projects.find(p => p.id === currentProjectId);
   const { messages, setMessages, isGenerating, sendMessage, stopGeneration, regenerateMessage, currentConversationId } = useChat(selectedConvId, '/api/chat', conversationStorageKey);
   const { documents, uploadDocument, isUploading, uploadError, detachDocument } = useDocuments(currentConversationId, (newId) => {
     setSelectedConvId(newId);
@@ -55,7 +61,7 @@ export function ChatPage() {
 
   const handleSendMessage = (text: string) => {
     setExplicitNewChat(false);
-    sendMessage(text);
+    sendMessage(text, { projectId: activeProjectId || undefined });
   };
 
   const handleRetry = (msg: any) => {
@@ -148,13 +154,17 @@ export function ChatPage() {
 
       <Sidebar 
         currentConversationId={currentConversationId}
+        activeProjectId={currentProjectId}
         onSelectConversation={(id) => {
           setSelectedConvId(id);
+          const conv = conversations.find(c => c.id === id);
+          setActiveProjectId(conv?.project_id || null);
           setExplicitNewChat(false);
           setIsSidebarOpen(false);
         }}
-        onNewConversation={() => {
+        onNewConversation={(projectId?: string) => {
           setSelectedConvId(null);
+          setActiveProjectId(projectId || null);
           setExplicitNewChat(true);
           localStorage.removeItem(conversationStorageKey);
           setIsSidebarOpen(false);
@@ -180,8 +190,25 @@ export function ChatPage() {
             >
               <Menu size={18} />
             </button>
+
+            {/* Project Breadcrumb */}
+            {currentProject && (
+              <div 
+                className="hidden xs:flex items-center gap-1.5 px-2 py-0.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[0.7rem] shrink-0 font-medium max-w-[130px] sm:max-w-[190px]"
+                title={`Project: ${currentProject.name} (${currentProject.progress}% complete)`}
+              >
+                <Folder size={11} style={{ color: currentProject.color || '#d17b24' }} className="shrink-0" />
+                <span className="truncate font-semibold text-[var(--text-primary)]">
+                  {currentProject.name}
+                </span>
+                <span className="shrink-0 text-[0.62rem] font-bold text-[var(--accent)] bg-[var(--bg-primary)] px-1 py-0.2 rounded border border-[var(--border-subtle)]">
+                  {currentProject.progress}%
+                </span>
+              </div>
+            )}
+
             <h3 className="text-xs sm:text-sm font-semibold text-[var(--text-primary)] truncate max-w-[90px] xs:max-w-[130px] sm:max-w-none">
-              {currentConversationId ? t('conversation') : t('newChat')}
+              {currentConversationId ? t('conversation') : currentProject ? 'New Thread' : t('newChat')}
             </h3>
 
             {/* Attached Docs */}

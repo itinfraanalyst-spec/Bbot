@@ -57,14 +57,37 @@ def get_doc_repo() -> DocumentRepository:
 # Ensure DB is initialized at startup
 init_db()
 
+class CreateProjectRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: Optional[str] = Field("", max_length=500)
+    color: Optional[str] = "#d17b24"
+    status: Optional[str] = "IN_PROGRESS"
+    progress: Optional[int] = Field(0, ge=0, le=100)
+
+class UpdateProjectRequest(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = None
+    color: Optional[str] = None
+    status: Optional[str] = None
+    progress: Optional[int] = Field(None, ge=0, le=100)
+
+class AssignProjectRequest(BaseModel):
+    project_id: Optional[str] = None
+
+class UpdateConversationProgressRequest(BaseModel):
+    progress: Optional[int] = Field(None, ge=0, le=100)
+    status: Optional[str] = None
+
 class CreateConversationRequest(BaseModel):
     title: str = "New Conversation"
+    project_id: Optional[str] = None
 
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=12000)
     conversation_id: Optional[str] = None
     truncate_from_message_id: Optional[str] = None
     language: Optional[str] = "en"
+    project_id: Optional[str] = None
 
 class MessageFeedbackRequest(BaseModel):
     rating: str = Field(..., pattern="^(positive|negative)$")
@@ -109,8 +132,69 @@ def list_models(current_user: dict = Depends(get_current_user)):
 
 @router.post("/conversations")
 def create_conversation(req: CreateConversationRequest, repo: ConversationRepository = Depends(get_repository), current_user: dict = Depends(get_current_user)):
-    conv_id = repo.create_conversation(title=req.title, user_id=current_user.get("id"))
+    conv_id = repo.create_conversation(title=req.title, user_id=current_user.get("id"), project_id=req.project_id)
     return repo.get_conversation(conv_id)
+
+# --- Projects & Threads Endpoints ---
+@router.get("/projects")
+def list_user_projects(repo: ConversationRepository = Depends(get_repository), current_user: dict = Depends(get_current_user)):
+    projects = repo.list_projects(current_user.get("id"))
+    return {"projects": projects}
+
+@router.post("/projects")
+def create_user_project(req: CreateProjectRequest, repo: ConversationRepository = Depends(get_repository), current_user: dict = Depends(get_current_user)):
+    project = repo.create_project(
+        user_id=current_user.get("id"),
+        name=req.name.strip(),
+        description=req.description.strip() if req.description else "",
+        progress=req.progress if req.progress is not None else 0,
+        status=req.status or "IN_PROGRESS",
+        color=req.color or "#d17b24"
+    )
+    return project
+
+@router.get("/projects/{project_id}")
+def get_user_project(project_id: str, repo: ConversationRepository = Depends(get_repository), current_user: dict = Depends(get_current_user)):
+    project = repo.get_project(project_id, current_user.get("id"))
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+@router.patch("/projects/{project_id}")
+def update_user_project(project_id: str, req: UpdateProjectRequest, repo: ConversationRepository = Depends(get_repository), current_user: dict = Depends(get_current_user)):
+    updated = repo.update_project(
+        project_id,
+        current_user.get("id"),
+        name=req.name.strip() if req.name else None,
+        description=req.description.strip() if req.description is not None else None,
+        progress=req.progress,
+        status=req.status,
+        color=req.color
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Project not found or not editable")
+    return updated
+
+@router.delete("/projects/{project_id}")
+def delete_user_project(project_id: str, repo: ConversationRepository = Depends(get_repository), current_user: dict = Depends(get_current_user)):
+    success = repo.delete_project(project_id, current_user.get("id"))
+    if not success:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"status": "deleted"}
+
+@router.patch("/conversations/{conversation_id}/project")
+def assign_conversation_to_project(conversation_id: str, req: AssignProjectRequest, repo: ConversationRepository = Depends(get_repository), current_user: dict = Depends(get_current_user)):
+    success = repo.assign_conversation_project(conversation_id, req.project_id, current_user.get("id"))
+    if not success:
+        raise HTTPException(status_code=400, detail="Unable to assign conversation to project")
+    return {"status": "assigned", "project_id": req.project_id}
+
+@router.patch("/conversations/{conversation_id}/progress")
+def update_conversation_progress(conversation_id: str, req: UpdateConversationProgressRequest, repo: ConversationRepository = Depends(get_repository), current_user: dict = Depends(get_current_user)):
+    success = repo.update_conversation_progress(conversation_id, current_user.get("id"), progress=req.progress, status=req.status)
+    if not success:
+        raise HTTPException(status_code=400, detail="Unable to update conversation progress")
+    return {"status": "updated", "progress": req.progress, "thread_status": req.status}
 
 @router.get("/conversations")
 def list_conversations(repo: ConversationRepository = Depends(get_repository), current_user: dict = Depends(get_current_user)):
@@ -278,7 +362,7 @@ def chat_endpoint(request: Request, chat_req: ChatRequest, service: ChatService 
         title = " ".join(words[:5]) + ("..." if len(words) > 5 else "")
         if not title.strip():
             title = "New Conversation"
-        conv_id = repo.create_conversation(title=title, user_id=current_user.get("id"))
+        conv_id = repo.create_conversation(title=title, user_id=current_user.get("id"), project_id=chat_req.project_id)
 
     if chat_req.truncate_from_message_id and conv_id:
         repo.truncate_from_message(conv_id, chat_req.truncate_from_message_id)
@@ -330,7 +414,7 @@ def chat_endpoint(request: Request, chat_req: ChatRequest, service: ChatService 
         finally:
             service.provider.release_capacity()
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(event_generator(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"})
 
 @router.post("/chat/translate")
 async def translate_chat_message(

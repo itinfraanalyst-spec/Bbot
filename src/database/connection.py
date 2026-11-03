@@ -13,14 +13,35 @@ def init_db():
         # Enable Foreign Keys
         cursor.execute("PRAGMA foreign_keys = ON;")
         
+        # Projects table for grouped conversation threads and progress tracking
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS projects (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                progress INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'IN_PROGRESS',
+                color TEXT DEFAULT '#d17b24',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id)")
+
         # Conversations table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS conversations (
                 id TEXT PRIMARY KEY,
                 title TEXT NOT NULL,
                 user_id TEXT,
+                project_id TEXT,
+                progress INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'active',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE SET NULL
             )
         """)
         
@@ -39,6 +60,21 @@ def init_db():
             cursor.execute("ALTER TABLE conversations ADD COLUMN summary TEXT;")
         except sqlite3.OperationalError:
             pass # Column already exists
+
+        try:
+            cursor.execute("ALTER TABLE conversations ADD COLUMN project_id TEXT;")
+        except sqlite3.OperationalError:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE conversations ADD COLUMN progress INTEGER DEFAULT 0;")
+        except sqlite3.OperationalError:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE conversations ADD COLUMN status TEXT DEFAULT 'active';")
+        except sqlite3.OperationalError:
+            pass
 
 
         
