@@ -16,6 +16,8 @@ export interface Project {
   threads?: Conversation[];
 }
 
+const EMPTY_PROJECTS: Project[] = [];
+
 export function useProjects() {
   const queryClient = useQueryClient();
 
@@ -28,7 +30,7 @@ export function useProjects() {
     return data.projects || [];
   };
 
-  const { data: projects = [], isLoading, isError, refetch } = useQuery({
+  const { data: projects = EMPTY_PROJECTS, isLoading, isError, refetch } = useQuery({
     queryKey: ['projects'],
     queryFn: fetchProjects,
   });

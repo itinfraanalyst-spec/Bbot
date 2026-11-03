@@ -12,7 +12,12 @@ export interface Message {
 
 const CHAT_TIMEOUT_MS = 600000; // 10 minutes for slow local LLM inference; avoid aborting valid document-grounded answers
 
-export function useChat(initialConversationId: string | null | undefined, chatEndpoint = '/api/chat', storageKey = 'trpwbot.currentConversationId') {
+export function useChat(
+  initialConversationId: string | null | undefined, 
+  chatEndpoint = '/api/chat', 
+  storageKey = 'trpwbot.currentConversationId',
+  onConversationNotFound?: () => void
+) {
   let queryClient: ReturnType<typeof useQueryClient> | null = null;
   try {
     queryClient = useQueryClient();
@@ -21,18 +26,16 @@ export function useChat(initialConversationId: string | null | undefined, chatEn
   }
   const [messages, setMessages] = useState<Message[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const failedConvIdsRef = useRef<Set<string>>(new Set());
 
   const resolveConversationId = useCallback((providedId: string | null | undefined) => {
     if (providedId !== undefined) {
-      if (providedId === null && storageKey === 'trpwbot.currentConversationId') return null;
-      if (providedId === null) return typeof window !== 'undefined' ? localStorage.getItem(storageKey) : null;
       return providedId;
     }
     return typeof window !== 'undefined' ? localStorage.getItem(storageKey) : null;
   }, [storageKey]);
 
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(() => resolveConversationId(initialConversationId));
-  
   
   // Ref to hold the streamed text before flushing to state
   const streamingTextRef = useRef('');
@@ -46,17 +49,28 @@ export function useChat(initialConversationId: string | null | undefined, chatEn
     const nextConversationId = resolveConversationId(initialConversationId);
 
     if (nextConversationId) {
+      if (failedConvIdsRef.current.has(nextConversationId)) {
+        if (!cancelled) {
+          setCurrentConversationId(null);
+          setMessages([]);
+          if (onConversationNotFound) onConversationNotFound();
+        }
+        return;
+      }
+
       if (!cancelled) setCurrentConversationId(nextConversationId);
       // Fetch history
       fetch(`/api/conversations/${nextConversationId}`, {
-      credentials: "include"
+        credentials: "include"
       })
       .then(res => {
         if (cancelled) return null;
         if (res.status === 403 || res.status === 404) {
+          failedConvIdsRef.current.add(nextConversationId);
           localStorage.removeItem(storageKey);
           setCurrentConversationId(null);
           setMessages([]);
+          if (onConversationNotFound) onConversationNotFound();
           return null;
         }
         return res.json();
@@ -77,7 +91,7 @@ export function useChat(initialConversationId: string | null | undefined, chatEn
     return () => {
       cancelled = true;
     };
-  }, [initialConversationId, storageKey, resolveConversationId]);
+  }, [initialConversationId, storageKey, resolveConversationId, onConversationNotFound]);
 
   useEffect(() => {
     if (currentConversationId) {

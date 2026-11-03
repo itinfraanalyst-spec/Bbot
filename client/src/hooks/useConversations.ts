@@ -11,6 +11,8 @@ export interface Conversation {
   status?: string;
 }
 
+const EMPTY_CONVERSATIONS: Conversation[] = [];
+
 export function useConversations() {
   
   const queryClient = useQueryClient();
@@ -24,7 +26,7 @@ export function useConversations() {
     return data.conversations || [];
   };
 
-  const { data: conversations = [], isLoading, isError, refetch } = useQuery({
+  const { data: conversations = EMPTY_CONVERSATIONS, isLoading, isError, refetch } = useQuery({
     queryKey: ['conversations'],
     queryFn: fetchConversations,
   });

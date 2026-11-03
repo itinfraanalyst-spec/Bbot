@@ -27,7 +27,17 @@ export function ChatPage() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const { conversations = [] } = useConversations();
   const { projects = [] } = useProjects();
-  const { messages, setMessages, isGenerating, sendMessage, stopGeneration, regenerateMessage, currentConversationId } = useChat(selectedConvId, '/api/chat', conversationStorageKey);
+  const { messages, setMessages, isGenerating, sendMessage, stopGeneration, regenerateMessage, currentConversationId } = useChat(
+    selectedConvId, 
+    '/api/chat', 
+    conversationStorageKey,
+    () => {
+      setSelectedConvId(null);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(conversationStorageKey);
+      }
+    }
+  );
   const activeConversation = (conversations || []).find(c => c.id === currentConversationId);
   const currentProjectId = activeConversation?.project_id || activeProjectId;
   const currentProject = (projects || []).find(p => p.id === currentProjectId);
@@ -41,12 +51,13 @@ export function ChatPage() {
     if (!userId) return;
     const storedId = localStorage.getItem(conversationStorageKey);
     if (storedId) {
-      setSelectedConvId(storedId);
+      if (selectedConvId !== storedId) {
+        setSelectedConvId(storedId);
+      }
     } else if (!explicitNewChat && conversations.length > 0 && !selectedConvId) {
-      // Automatically reopen and restore the user's latest conversation!
       setSelectedConvId(conversations[0].id);
     }
-  }, [conversationStorageKey, userId, conversations, selectedConvId, explicitNewChat]);
+  }, [conversationStorageKey, userId, conversations.length, explicitNewChat, selectedConvId]);
 
   useEffect(() => {
     if (!isHelpOpen) return;
