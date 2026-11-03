@@ -288,7 +288,7 @@ export function ChatInput({ onSendMessage, disabled, onUploadFile, isUploading, 
           )}
         </div>
       )}
-      <div className="w-full max-w-[960px] flex items-end gap-2 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-[var(--radius-lg)] py-2 px-4 shadow-[0_4px_20px_rgba(0,0,0,0.1)] focus-within:border-[var(--accent)] transition-colors pointer-events-auto">
+      <div className="w-full max-w-[960px] flex items-end gap-1.5 sm:gap-2 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-[var(--radius-lg)] py-1.5 sm:py-2 px-2.5 sm:px-4 shadow-[0_4px_20px_rgba(0,0,0,0.1)] focus-within:border-[var(--accent)] transition-colors pointer-events-auto">
         <input
           type="file"
           ref={fileInputRef}
@@ -304,7 +304,7 @@ export function ChatInput({ onSendMessage, disabled, onUploadFile, isUploading, 
           disabled={isUploading || disabled || isNewChat}
           title={isNewChat ? "Say Hello first to start conversation and upload documents" : "Attach Document"}
           className={clsx(
-            "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] transition-colors shrink-0 mb-1 rounded-full w-10 h-10 md:w-9 md:h-9 flex items-center justify-center border-none bg-transparent",
+            "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] transition-colors shrink-0 mb-0.5 sm:mb-1 rounded-full w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center border-none bg-transparent",
             isNewChat ? "opacity-35 cursor-not-allowed hover:bg-transparent" : "cursor-pointer"
           )}
         >
@@ -317,7 +317,7 @@ export function ChatInput({ onSendMessage, disabled, onUploadFile, isUploading, 
           onKeyDown={handleKeyDown}
           disabled={disabled || isUploading}
           placeholder={isNewChat ? (t('clickToStart') || "Say 'Hello' or click 'Say Hello 👋' to start...") : (disabled || isUploading) ? t('thinking') : t('inputPlaceholder')}
-          className="flex-1 max-h-[150px] bg-transparent text-[var(--text-primary)] placeholder:text-[var(--text-muted)] py-3 px-0 outline-none resize-none overflow-y-auto leading-relaxed border-none disabled:opacity-75 disabled:cursor-not-allowed"
+          className="flex-1 min-w-0 max-h-[120px] sm:max-h-[150px] text-base sm:text-sm bg-transparent text-[var(--text-primary)] placeholder:text-[var(--text-muted)] py-2 sm:py-3 px-1 sm:px-0 outline-none resize-none overflow-y-auto leading-relaxed border-none disabled:opacity-75 disabled:cursor-not-allowed"
           rows={1}
         />
         {/* Language Indicator Badge */}
@@ -332,7 +332,7 @@ export function ChatInput({ onSendMessage, disabled, onUploadFile, isUploading, 
           <button
             type="button"
             onClick={() => onSendMessage(t('sayHelloPrompt', { botName }))}
-            className="shrink-0 mb-2 md:mb-1.5 mr-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 hover:border-amber-500 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 shadow-[0_2px_8px_rgba(245,158,11,0.15)] hover:scale-[1.02] active:scale-[0.98] dark:bg-gradient-to-r dark:from-amber-500/20 dark:via-orange-500/20 dark:to-amber-500/20 dark:border-amber-500/50 dark:text-amber-300 dark:hover:from-amber-500 dark:hover:to-orange-500 dark:hover:text-white dark:shadow-[0_0_12px_rgba(245,158,11,0.25)]"
+            className="shrink-0 mb-1 sm:mb-1.5 mr-1 sm:mr-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 hover:border-amber-500 px-2 sm:px-3.5 py-1 sm:py-1.5 rounded-full text-[0.7rem] sm:text-xs font-bold transition-all flex items-center gap-1.5 shadow-[0_2px_8px_rgba(245,158,11,0.15)] hover:scale-[1.02] active:scale-[0.98] dark:bg-gradient-to-r dark:from-amber-500/20 dark:via-orange-500/20 dark:to-amber-500/20 dark:border-amber-500/50 dark:text-amber-300 dark:hover:from-amber-500 dark:hover:to-orange-500 dark:hover:text-white dark:shadow-[0_0_12px_rgba(245,158,11,0.25)]"
           >
             <Sparkles size={13} className="text-amber-600 dark:text-amber-300" />
             {t('sayHello')}
@@ -341,7 +341,7 @@ export function ChatInput({ onSendMessage, disabled, onUploadFile, isUploading, 
         {isGenerating ? (
           <button
             onClick={onStop}
-            className="w-11 h-11 md:w-9 md:h-9 shrink-0 mb-0.5 md:mb-1 text-white bg-rose-600 hover:bg-rose-500 rounded-[var(--radius-full)] transition-all flex items-center justify-center shadow-[0_0_12px_rgba(225,29,72,0.4)] cursor-pointer"
+            className="w-8 h-8 sm:w-9 sm:h-9 shrink-0 mb-0.5 sm:mb-1 text-white bg-rose-600 hover:bg-rose-500 rounded-[var(--radius-full)] transition-all flex items-center justify-center shadow-[0_0_12px_rgba(225,29,72,0.4)] cursor-pointer"
             title="Stop generating"
           >
             <div className="w-3 h-3 bg-current rounded-sm" />
@@ -354,7 +354,7 @@ export function ChatInput({ onSendMessage, disabled, onUploadFile, isUploading, 
                 type="button"
                 onClick={handleTranslateInput}
                 disabled={disabled || isUploading || isTranslatingInput}
-                className="w-11 h-11 md:w-9 md:h-9 shrink-0 mb-0.5 md:mb-1 text-cyan-900 bg-cyan-100 hover:bg-cyan-200 border border-cyan-300 hover:border-cyan-400 rounded-[var(--radius-full)] disabled:opacity-50 transition-all flex items-center justify-center mr-1 cursor-pointer dark:text-cyan-300 dark:bg-cyan-500/15 dark:hover:bg-cyan-500/25 dark:border-cyan-500/35 dark:hover:border-cyan-400 dark:shadow-[0_0_10px_rgba(6,182,212,0.3)]"
+                className="w-8 h-8 sm:w-9 sm:h-9 shrink-0 mb-0.5 sm:mb-1 text-cyan-900 bg-cyan-100 hover:bg-cyan-200 border border-cyan-300 hover:border-cyan-400 rounded-[var(--radius-full)] disabled:opacity-50 transition-all flex items-center justify-center mr-1 cursor-pointer dark:text-cyan-300 dark:bg-cyan-500/15 dark:hover:bg-cyan-500/25 dark:border-cyan-500/35 dark:hover:border-cyan-400 dark:shadow-[0_0_10px_rgba(6,182,212,0.3)]"
                 title={`Translate typed input to ${currentLanguageOption.nativeName}`}
               >
                 {isTranslatingInput ? <Loader2 size={16} className="animate-spin text-cyan-700 dark:text-cyan-300" /> : <Languages size={16} />}
@@ -364,7 +364,7 @@ export function ChatInput({ onSendMessage, disabled, onUploadFile, isUploading, 
             <button
               onClick={toggleRecording}
               disabled={disabled || isUploading}
-              className={`w-11 h-11 md:w-9 md:h-9 shrink-0 mb-0.5 md:mb-1 ${
+              className={`w-8 h-8 sm:w-9 sm:h-9 shrink-0 mb-0.5 sm:mb-1 ${
                 isRecording 
                   ? 'text-white bg-rose-600 shadow-[0_0_14px_rgba(225,29,72,0.6)] animate-pulse' 
                   : 'text-sky-900 bg-sky-100 hover:bg-sky-200 border border-sky-300 hover:border-sky-400 dark:text-sky-300 dark:bg-sky-500/10 dark:hover:bg-sky-500/20 dark:border-sky-500/30 dark:hover:border-sky-400 dark:hover:shadow-[0_0_10px_rgba(56,189,248,0.25)]'

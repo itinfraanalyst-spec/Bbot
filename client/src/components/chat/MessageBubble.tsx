@@ -296,12 +296,12 @@ export function MessageBubble({ message, botName = 'bbot', onRetry, isGenerating
   };
 
   return (
-    <div className={clsx("flex w-full mb-4 group max-w-[960px] mx-auto", isUser ? "justify-end" : "justify-start gap-4")}>
+    <div className={clsx("flex w-full mb-3 sm:mb-4 group max-w-[960px] mx-auto", isUser ? "justify-end" : "justify-start gap-2.5 sm:gap-4")}>
       {!isUser && (
-        <img src="/logo.png" alt="AI Avatar" className="w-[32px] h-[32px] rounded-full border-2 border-[var(--accent)] shrink-0 object-cover mt-1" />
+        <img src="/logo.png" alt="AI Avatar" className="w-[26px] h-[26px] sm:w-[32px] sm:h-[32px] rounded-full border-2 border-[var(--accent)] shrink-0 object-cover mt-0.5 sm:mt-1" />
       )}
       
-      <div className={clsx("flex flex-col gap-1 min-w-0", isUser ? "items-end max-w-[78%]" : "items-start flex-1")}>
+      <div className={clsx("flex flex-col gap-1 min-w-0", isUser ? "items-end max-w-[90%] sm:max-w-[78%]" : "items-start flex-1")}>
         {!isUser && (
           <div className="flex items-center gap-2 mb-1 px-1">
             <span className="text-[1rem] font-bold text-[var(--accent)]">{botName}</span>
@@ -348,7 +348,7 @@ export function MessageBubble({ message, botName = 'bbot', onRetry, isGenerating
               </div>
             </div>
           ) : (
-            <div className={clsx("prose max-w-none w-full", theme === 'dark' && "prose-invert", status === 'sending' && "typing-cursor")}>
+            <div className={clsx("prose prose-sm sm:prose-base max-w-none w-full leading-relaxed break-words text-[0.88rem] sm:text-[1rem]", theme === 'dark' && "prose-invert", status === 'sending' && "typing-cursor")}>
               {parsedCharts && parsedCharts.map((chart: any, idx: number) => (
                 <DataChart
                   key={idx}
@@ -493,7 +493,7 @@ export function MessageBubble({ message, botName = 'bbot', onRetry, isGenerating
 
         {!isUser && !isError && status === 'complete' && (
           <div className="mt-2 flex flex-col gap-2">
-            <div className="flex items-center gap-1.5 text-[var(--text-muted)]" aria-label="Rate this answer">
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[var(--text-muted)] flex-wrap" aria-label="Rate this answer">
               <button
                 type="button"
                 onClick={() => { setShowSuggestionInput(false); submitFeedback('positive'); }}

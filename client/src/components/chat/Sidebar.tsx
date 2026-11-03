@@ -2,7 +2,7 @@ import { useConversations } from '../../hooks/useConversations';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, MessageSquare, Edit2, Trash2, Pin, PinOff, Settings, Search, Lock, Lightbulb, Send } from 'lucide-react';
+import { LogOut, MessageSquare, Edit2, Trash2, Pin, PinOff, Settings, Search, Lock, Lightbulb, Send, X } from 'lucide-react';
 import clsx from 'clsx';
 import { useState } from 'react';
 import type { FormEvent, MouseEvent } from 'react';
@@ -15,7 +15,7 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-export function Sidebar({ currentConversationId, onSelectConversation, onNewConversation, isOpen }: SidebarProps) {
+export function Sidebar({ currentConversationId, onSelectConversation, onNewConversation, isOpen, onClose }: SidebarProps) {
   const { t } = useLanguage();
   const { conversations, isLoading, isError, refetch, deleteConversation, renameConversation, togglePin } = useConversations();
   const { logout, isAdmin, userId, username } = useAuth();
@@ -96,14 +96,23 @@ export function Sidebar({ currentConversationId, onSelectConversation, onNewConv
 
   return (
     <div className={clsx(
-      "w-[280px] bg-[var(--bg-sidebar)] border-r border-[var(--border-subtle)] flex flex-col h-full shrink-0 transition-transform duration-300 z-50",
+      "w-[85vw] max-w-[280px] bg-[var(--bg-sidebar)] border-r border-[var(--border-subtle)] flex flex-col h-full shrink-0 transition-transform duration-300 z-50",
       "fixed inset-y-0 left-0 md:relative md:translate-x-0",
       isOpen ? "translate-x-0" : "-translate-x-full"
     )}>
       <div className="py-6 px-4 flex flex-col gap-4">
-        <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="Logo" className="w-[28px] h-[28px] rounded-full object-cover" />
-          <h2 className="text-[1.1rem] font-semibold tracking-[-0.01em]">TRPW <span className="text-[var(--accent)]">bbot</span></h2>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="Logo" className="w-[28px] h-[28px] rounded-full object-cover" />
+            <h2 className="text-[1.1rem] font-semibold tracking-[-0.01em]">TRPW <span className="text-[var(--accent)]">bbot</span></h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="md:hidden text-[var(--text-muted)] hover:text-[var(--text-primary)] p-1 rounded-full hover:bg-[var(--bg-surface-hover)] transition-colors border-none bg-transparent cursor-pointer"
+            aria-label="Close sidebar"
+          >
+            <X size={20} />
+          </button>
         </div>
         <button
           onClick={onNewConversation}
