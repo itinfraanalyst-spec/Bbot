@@ -174,7 +174,8 @@ export function Sidebar({
   const projectThreadsMap: Record<string, typeof conversations> = {};
   const generalConversations: typeof conversations = [];
 
-  conversations.forEach((conv) => {
+  (conversations || []).forEach((conv) => {
+    if (!conv) return;
     if (conv.project_id) {
       if (!projectThreadsMap[conv.project_id]) projectThreadsMap[conv.project_id] = [];
       projectThreadsMap[conv.project_id].push(conv);
@@ -183,18 +184,20 @@ export function Sidebar({
     }
   });
 
-  const query = searchQuery.toLowerCase().trim();
+  const query = (searchQuery || '').toLowerCase().trim();
 
-  const filteredProjects = projects.filter((p) => {
+  const filteredProjects = (projects || []).filter((p) => {
+    if (!p) return false;
     if (!query) return true;
-    if (p.name.toLowerCase().includes(query)) return true;
+    if ((p.name || '').toLowerCase().includes(query)) return true;
     const threads = projectThreadsMap[p.id] || [];
-    return threads.some(t => t.title.toLowerCase().includes(query));
+    return threads.some(t => t && (t.title || '').toLowerCase().includes(query));
   });
 
   const filteredGeneral = generalConversations.filter((c) => {
+    if (!c) return false;
     if (!query) return true;
-    return c.title.toLowerCase().includes(query);
+    return (c.title || '').toLowerCase().includes(query);
   });
 
   const getStatusBadge = (status: string) => {
@@ -352,7 +355,7 @@ export function Sidebar({
                               <div 
                                 className="h-full rounded-full transition-all duration-300"
                                 style={{ 
-                                  width: `${Math.min(100, Math.max(0, project.progress))}%`,
+                                  width: `${Math.min(100, Math.max(0, project.progress || 0))}%`,
                                   backgroundColor: project.color || '#d17b24'
                                 }}
                               />

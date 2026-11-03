@@ -25,12 +25,12 @@ export function ChatPage() {
   const [isTranslatingAll, setIsTranslatingAll] = useState(false);
   const [explicitNewChat, setExplicitNewChat] = useState(false);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
-  const { conversations } = useConversations();
-  const { projects } = useProjects();
-  const activeConversation = conversations.find(c => c.id === currentConversationId);
-  const currentProjectId = activeConversation?.project_id || activeProjectId;
-  const currentProject = projects.find(p => p.id === currentProjectId);
+  const { conversations = [] } = useConversations();
+  const { projects = [] } = useProjects();
   const { messages, setMessages, isGenerating, sendMessage, stopGeneration, regenerateMessage, currentConversationId } = useChat(selectedConvId, '/api/chat', conversationStorageKey);
+  const activeConversation = (conversations || []).find(c => c.id === currentConversationId);
+  const currentProjectId = activeConversation?.project_id || activeProjectId;
+  const currentProject = (projects || []).find(p => p.id === currentProjectId);
   const { documents, uploadDocument, isUploading, uploadError, detachDocument } = useDocuments(currentConversationId, (newId) => {
     setSelectedConvId(newId);
   });

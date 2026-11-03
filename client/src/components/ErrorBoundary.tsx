@@ -1,6 +1,6 @@
 import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, RefreshCw, Trash2 } from 'lucide-react';
 
 interface Props {
   children?: ReactNode;
@@ -22,28 +22,50 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Uncaught error:', error, errorInfo);
+    console.error('Uncaught error in UI:', error, errorInfo);
   }
 
   public render() {
     if (this.state.hasError) {
       return (
         <div className="min-h-screen bg-[var(--bg-primary)] flex flex-col items-center justify-center p-4">
-          <div className="bg-[var(--bg-surface)] p-8 rounded-[var(--radius-lg)] border border-[var(--border-subtle)] shadow-sm max-w-md w-full text-center">
-            <div className="text-[var(--error)] mb-4 flex justify-center">
-              <AlertCircle size={48} />
+          <div className="bg-[var(--bg-surface)] p-6 sm:p-8 rounded-2xl border border-[var(--border-subtle)] shadow-xl max-w-md w-full text-center">
+            <div className="text-[var(--error)] mb-3 flex justify-center">
+              <AlertCircle size={44} />
             </div>
-            <h2 className="text-[var(--text-primary)] text-xl font-bold mb-2">Something went wrong</h2>
-            <p className="text-[var(--text-secondary)] mb-6 text-sm">
+            <h2 className="text-[var(--text-primary)] text-lg font-bold mb-1.5">Something went wrong</h2>
+            <p className="text-[var(--text-secondary)] mb-4 text-xs">
               We encountered an unexpected error while rendering this page.
             </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white px-4 py-2 rounded-[var(--radius-md)] transition-colors inline-flex items-center justify-center gap-2 w-full"
-            >
-              <RefreshCw size={16} />
-              Reload Page
-            </button>
+
+            {this.state.error && (
+              <div className="mb-4 p-2.5 bg-red-500/10 border border-red-500/20 rounded-xl text-left text-[0.72rem] text-red-500 font-mono break-words max-h-32 overflow-y-auto">
+                {this.state.error.message || String(this.state.error)}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => window.location.reload()}
+                className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white px-4 py-2.5 rounded-xl text-xs font-semibold transition-colors inline-flex items-center justify-center gap-2 w-full cursor-pointer border-none shadow-xs"
+              >
+                <RefreshCw size={14} />
+                Reload Page
+              </button>
+              <button
+                onClick={() => {
+                  try {
+                    localStorage.clear();
+                    sessionStorage.clear();
+                  } catch {}
+                  window.location.href = '/login';
+                }}
+                className="bg-transparent hover:bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-4 py-2 rounded-xl text-xs font-medium transition-colors inline-flex items-center justify-center gap-1.5 w-full cursor-pointer border border-[var(--border-subtle)]"
+              >
+                <Trash2 size={13} />
+                Clear Session & Re-login
+              </button>
+            </div>
           </div>
         </div>
       );
