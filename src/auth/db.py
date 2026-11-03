@@ -123,8 +123,10 @@ def create_registered_user(username: str, password_hash: str) -> dict:
         return dict(row)
 
 def get_user_by_username(username: str) -> dict:
+    if not username:
+        return None
     with get_db_connection() as conn:
-        row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        row = conn.execute("SELECT * FROM users WHERE LOWER(username) = LOWER(?)", (username.strip(),)).fetchone()
         return dict(row) if row else None
 
 def record_failed_login(username: str, lock_minutes: int = 15):

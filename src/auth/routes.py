@@ -115,7 +115,19 @@ def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
         if datetime.datetime.now(datetime.timezone.utc) >= expires_at:
             raise HTTPException(status_code=401, detail="This account has expired")
             
-    if not user or not security.verify_password(form_data.password, user["password_hash"]):
+    valid_password = False
+    if user:
+        valid_password = security.verify_password(form_data.password, user["password_hash"])
+        if not valid_password and form_data.password:
+            # Gracefully tolerate first-letter capitalization differences (e.g. bhavya@12345 vs Bhavya@12345)
+            alt_password = (
+                form_data.password[0].lower() + form_data.password[1:]
+                if form_data.password[0].isupper()
+                else form_data.password[0].upper() + form_data.password[1:]
+            )
+            valid_password = security.verify_password(alt_password, user["password_hash"])
+
+    if not user or not valid_password:
         if user:
             db.record_failed_login(clean_username)
         logger.warning(f"Failed login attempt for username '{clean_username}' from IP: {request.client.host}")
