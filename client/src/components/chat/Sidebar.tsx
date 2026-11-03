@@ -18,7 +18,6 @@ import {
   FolderPlus, 
   ChevronRight, 
   ChevronDown, 
-  FolderKanban,
   Plus
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -48,7 +47,7 @@ export function Sidebar({
 }: SidebarProps) {
   const { t } = useLanguage();
   const { 
-    conversations, 
+    conversations = [], 
     isLoading, 
     isError, 
     refetch, 
@@ -58,7 +57,7 @@ export function Sidebar({
     assignProject 
   } = useConversations();
   const { 
-    projects, 
+    projects = [], 
     createProject, 
     updateProject, 
     deleteProject 
@@ -200,31 +199,18 @@ export function Sidebar({
     return (c.title || '').toLowerCase().includes(query);
   });
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'COMPLETED':
-        return <span className="px-1.5 py-0.5 rounded text-[0.65rem] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">Done</span>;
-      case 'REVIEW':
-        return <span className="px-1.5 py-0.5 rounded text-[0.65rem] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 border border-purple-500/20">Review</span>;
-      case 'PLANNING':
-        return <span className="px-1.5 py-0.5 rounded text-[0.65rem] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 border border-blue-500/20">Plan</span>;
-      default:
-        return <span className="px-1.5 py-0.5 rounded text-[0.65rem] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20">In Progress</span>;
-    }
-  };
-
   return (
     <div className={clsx(
-      "w-[85vw] max-w-[290px] bg-[var(--bg-sidebar)] border-r border-[var(--border-subtle)] flex flex-col h-full shrink-0 transition-transform duration-300 z-50",
+      "w-[85vw] max-w-[280px] bg-[var(--bg-sidebar)] border-r border-[var(--border-subtle)] flex flex-col h-full shrink-0 transition-transform duration-300 z-50 select-none",
       "fixed inset-y-0 left-0 md:relative md:translate-x-0",
       isOpen ? "translate-x-0" : "-translate-x-full"
     )}>
-      {/* Sidebar Header */}
-      <div className="py-5 px-3.5 flex flex-col gap-3.5 border-b border-[var(--border-subtle)]">
+      {/* Top Header */}
+      <div className="pt-5 pb-3 px-3 flex flex-col gap-3 border-b border-[var(--border-subtle)]">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <img src="/logo.png" alt="Logo" className="w-[26px] h-[26px] rounded-full object-cover" />
-            <h2 className="text-[1.05rem] font-semibold tracking-[-0.01em]">TRPW <span className="text-[var(--accent)]">bbot</span></h2>
+          <div className="flex items-center gap-2">
+            <img src="/logo.png" alt="Logo" className="w-[24px] h-[24px] rounded-full object-cover" />
+            <h2 className="text-[1rem] font-bold tracking-tight">TRPW <span className="text-[var(--accent)]">bbot</span></h2>
           </div>
           <button
             onClick={onClose}
@@ -236,13 +222,13 @@ export function Sidebar({
         </div>
 
         {/* Action Buttons: New Chat & New Project */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => onNewConversation()}
-            className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white p-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer border-none"
-            title="Start a new chat thread"
+            className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white py-2 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer border-none"
+            title="Start a new chat"
           >
-            <MessageSquare size={14} />
+            <MessageSquare size={13} />
             <span>{t('newChat')}</span>
           </button>
 
@@ -251,31 +237,31 @@ export function Sidebar({
               setEditingProject(null);
               setIsProjectModalOpen(true);
             }}
-            className="flex items-center justify-center gap-1 px-3 py-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] text-[var(--text-primary)] text-xs font-semibold transition-all cursor-pointer shadow-xs shrink-0"
-            title="Create a new Project Workspace with threads"
+            className="flex items-center justify-center gap-1 px-2.5 py-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] text-[var(--text-primary)] text-xs font-medium transition-all cursor-pointer shadow-xs shrink-0"
+            title="Create a new Project"
           >
             <FolderPlus size={14} className="text-[var(--accent)]" />
-            <span className="hidden xs:inline">Project</span>
+            <span>Project</span>
           </button>
         </div>
 
         {/* Search Input */}
         <div className="relative flex items-center w-full">
-          <Search size={13} className="absolute left-2.5 text-[var(--text-muted)]" />
+          <Search size={12} className="absolute left-2.5 text-[var(--text-muted)]" />
           <input 
             type="text" 
-            placeholder="Search projects & threads..." 
+            placeholder="Search..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] rounded-lg py-1.5 pl-8 pr-2 text-xs focus:outline-none focus:border-[var(--accent)] transition-colors"
+            className="w-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] rounded-md py-1 pl-7 pr-2 text-xs focus:outline-none focus:border-[var(--accent)] transition-colors"
           />
         </div>
       </div>
 
-      {/* Main Content: Projects & Threads Accordion */}
-      <div className="flex-1 overflow-y-auto px-2.5 py-3 flex flex-col gap-3">
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-y-auto px-2 py-2 flex flex-col gap-3">
         {isLoading ? (
-          <div className="text-[var(--text-muted)] text-xs p-3 text-center animate-pulse">Loading workspace...</div>
+          <div className="text-[var(--text-muted)] text-xs p-3 text-center animate-pulse">Loading chats...</div>
         ) : isError ? (
           <div className="text-[var(--error)] text-xs p-3 text-center flex flex-col items-center gap-1">
             <span>Failed to load</span>
@@ -284,126 +270,85 @@ export function Sidebar({
         ) : (
           <>
             {/* 1. Projects Section */}
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between px-2 text-[0.68rem] uppercase font-bold tracking-wider text-[var(--text-muted)]">
-                <span className="flex items-center gap-1">
-                  <FolderKanban size={12} className="text-[var(--accent)]" />
-                  Projects & Threads ({filteredProjects.length})
-                </span>
-                <button
-                  onClick={() => {
-                    setEditingProject(null);
-                    setIsProjectModalOpen(true);
-                  }}
-                  className="text-[var(--accent)] hover:underline flex items-center gap-0.5 cursor-pointer border-none bg-transparent text-[0.65rem] font-bold"
-                >
-                  <Plus size={10} /> New
-                </button>
-              </div>
-
-              {filteredProjects.length === 0 ? (
-                <div className="p-3 text-center rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-muted)] text-xs">
-                  <p className="font-medium text-[var(--text-secondary)]">No projects yet</p>
-                  <p className="text-[0.68rem] mt-0.5">Click '+ Project' to create a workspace for your threads.</p>
+            {filteredProjects.length > 0 && (
+              <div className="flex flex-col gap-0.5">
+                <div className="flex items-center justify-between px-2 py-1 text-[0.65rem] uppercase font-bold tracking-wider text-[var(--text-muted)]">
+                  <span>Projects</span>
+                  <button
+                    onClick={() => {
+                      setEditingProject(null);
+                      setIsProjectModalOpen(true);
+                    }}
+                    className="text-[var(--accent)] hover:underline flex items-center gap-0.5 cursor-pointer border-none bg-transparent text-[0.65rem] font-bold"
+                  >
+                    <Plus size={11} /> New
+                  </button>
                 </div>
-              ) : (
-                filteredProjects.map((project) => {
+
+                {filteredProjects.map((project) => {
                   const isExpanded = expandedProjects[project.id] !== false; // default expanded
                   const threads = projectThreadsMap[project.id] || [];
                   const isProjectActive = activeProjectId === project.id;
 
                   return (
-                    <div 
-                      key={project.id}
-                      className={clsx(
-                        "rounded-xl border transition-all overflow-hidden",
-                        isProjectActive 
-                          ? "border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_4%,transparent)]"
-                          : "border-[var(--border-subtle)] bg-[var(--bg-surface)]"
-                      )}
-                    >
-                      {/* Project Folder Header */}
+                    <div key={project.id} className="flex flex-col">
+                      {/* Clean Minimal Folder Row */}
                       <div 
                         onClick={() => toggleProjectExpand(project.id)}
-                        className="group flex flex-col p-2.5 cursor-pointer hover:bg-[var(--bg-surface-hover)] transition-colors relative"
+                        className={clsx(
+                          "group flex items-center justify-between px-2 py-1.5 rounded-lg cursor-pointer transition-colors text-xs font-medium",
+                          isProjectActive 
+                            ? "bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--text-primary)]" 
+                            : "text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]"
+                        )}
                       >
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="text-[var(--text-muted)] shrink-0">
-                              {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                            </span>
-                            <div 
-                              className="w-5 h-5 rounded-md flex items-center justify-center text-white shrink-0 shadow-xs"
-                              style={{ backgroundColor: project.color || '#d17b24' }}
-                            >
-                              <Folder size={11} />
-                            </div>
-                            <span className="text-xs font-bold text-[var(--text-primary)] truncate" title={project.name}>
-                              {project.name}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {getStatusBadge(project.status)}
-                          </div>
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <span className="text-[var(--text-muted)] shrink-0">
+                            {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                          </span>
+                          <Folder size={14} style={{ color: project.color || '#d17b24' }} className="shrink-0" />
+                          <span className="truncate">{project.name}</span>
+                          <span className="text-[0.65rem] text-[var(--text-muted)] shrink-0 font-normal">
+                            ({threads.length})
+                          </span>
                         </div>
 
-                        {/* Progress Bar & Thread Count */}
-                        <div className="flex items-center justify-between gap-2 mt-2 pt-1 border-t border-[var(--border-subtle)]/50">
-                          <div className="flex-1 flex items-center gap-2">
-                            <div className="flex-1 h-1.5 bg-[var(--bg-primary)] rounded-full overflow-hidden border border-[var(--border-subtle)]">
-                              <div 
-                                className="h-full rounded-full transition-all duration-300"
-                                style={{ 
-                                  width: `${Math.min(100, Math.max(0, project.progress || 0))}%`,
-                                  backgroundColor: project.color || '#d17b24'
-                                }}
-                              />
-                            </div>
-                            <span className="text-[0.68rem] font-bold text-[var(--text-secondary)] shrink-0">
-                              {project.progress}%
-                            </span>
-                          </div>
-
-                          {/* Quick Project Actions (hover or active) */}
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={(e) => handleNewThreadInProject(e, project.id)}
-                              className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] transition-colors border-none bg-transparent cursor-pointer"
-                              title="Add Thread in Project"
-                            >
-                              <Plus size={12} />
-                            </button>
-                            <button
-                              onClick={(e) => handleEditProject(e, project)}
-                              className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] transition-colors border-none bg-transparent cursor-pointer"
-                              title="Edit Project"
-                            >
-                              <Edit2 size={11} />
-                            </button>
-                            <button
-                              onClick={(e) => handleDeleteProject(e, project)}
-                              className="p-1 rounded text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors border-none bg-transparent cursor-pointer"
-                              title="Delete Project"
-                            >
-                              <Trash2 size={11} />
-                            </button>
-                          </div>
+                        {/* Clean Actions */}
+                        <div className="hidden group-hover:flex items-center gap-0.5 shrink-0 ml-1">
+                          <button
+                            onClick={(e) => handleNewThreadInProject(e, project.id)}
+                            className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--bg-surface)] transition-colors border-none bg-transparent cursor-pointer"
+                            title="New Thread"
+                          >
+                            <Plus size={13} />
+                          </button>
+                          <button
+                            onClick={(e) => handleEditProject(e, project)}
+                            className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] transition-colors border-none bg-transparent cursor-pointer"
+                            title="Edit"
+                          >
+                            <Edit2 size={11} />
+                          </button>
+                          <button
+                            onClick={(e) => handleDeleteProject(e, project)}
+                            className="p-1 rounded text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors border-none bg-transparent cursor-pointer"
+                            title="Delete"
+                          >
+                            <Trash2 size={11} />
+                          </button>
                         </div>
                       </div>
 
-                      {/* Nested Threads inside Project */}
+                      {/* Clean Indented Threads */}
                       {isExpanded && (
-                        <div className="bg-[var(--bg-primary)]/40 border-t border-[var(--border-subtle)] px-2 py-1.5 flex flex-col gap-1">
+                        <div className="ml-4 pl-2 border-l border-[var(--border-subtle)] my-0.5 space-y-0.5">
                           {threads.length === 0 ? (
-                            <div className="py-2 px-2 text-[0.7rem] text-[var(--text-muted)] flex items-center justify-between">
-                              <span>No threads yet</span>
-                              <button
-                                onClick={(e) => handleNewThreadInProject(e, project.id)}
-                                className="text-[var(--accent)] hover:underline font-semibold flex items-center gap-0.5 cursor-pointer border-none bg-transparent text-[0.68rem]"
-                              >
-                                <Plus size={10} /> Add thread
-                              </button>
+                            <div 
+                              onClick={(e) => handleNewThreadInProject(e, project.id)}
+                              className="py-1 px-2 text-[0.7rem] text-[var(--text-muted)] hover:text-[var(--accent)] cursor-pointer flex items-center gap-1 rounded"
+                            >
+                              <Plus size={11} />
+                              <span>New thread</span>
                             </div>
                           ) : (
                             threads.map((thread) => {
@@ -415,12 +360,11 @@ export function Sidebar({
                                   className={clsx(
                                     "group flex items-center py-1.5 px-2 rounded-lg cursor-pointer transition-colors relative border gap-2 text-xs",
                                     isThreadActive
-                                      ? "bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] border-[var(--accent)] text-[var(--text-primary)] font-semibold shadow-xs"
+                                      ? "bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] border-[color-mix(in_srgb,var(--accent)_30%,transparent)] text-[var(--text-primary)] font-medium"
                                       : "border-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] hover:text-[var(--text-primary)]"
                                   )}
                                 >
-                                  <span className="text-[var(--text-muted)] shrink-0 font-mono text-[0.75rem]">↳</span>
-                                  <MessageSquare size={13} className="shrink-0 text-[var(--accent)]" />
+                                  <MessageSquare size={13} className={isThreadActive ? "text-[var(--accent)] shrink-0" : "text-[var(--text-muted)] shrink-0 group-hover:text-[var(--text-primary)]"} />
                                   <span className="truncate flex-1" title={thread.title}>
                                     {thread.title}
                                   </span>
@@ -437,9 +381,9 @@ export function Sidebar({
                                         setMovingConversation({ id: thread.id, title: thread.title, projectId: thread.project_id });
                                       }}
                                       className="p-1 text-[var(--text-muted)] hover:text-[var(--accent)] rounded transition-colors border-none bg-transparent cursor-pointer"
-                                      title="Move to another Project"
+                                      title="Move to Project"
                                     >
-                                      <FolderKanban size={12} />
+                                      <Folder size={11} />
                                     </button>
                                     <button 
                                       onClick={(e) => handleTogglePin(e, thread.id, thread.is_pinned)} 
@@ -471,19 +415,19 @@ export function Sidebar({
                       )}
                     </div>
                   );
-                })
-              )}
-            </div>
+                })}
+              </div>
+            )}
 
-            {/* 2. General (Unassigned) Threads Section */}
-            <div className="flex flex-col gap-1.5 mt-2">
-              <div className="flex items-center justify-between px-2 text-[0.68rem] uppercase font-bold tracking-wider text-[var(--text-muted)]">
-                <span>General Conversations ({filteredGeneral.length})</span>
+            {/* 2. General Chats Section */}
+            <div className="flex flex-col gap-0.5">
+              <div className="px-2 py-1 text-[0.65rem] uppercase font-bold tracking-wider text-[var(--text-muted)]">
+                <span>{filteredProjects.length > 0 ? "General Chats" : t('recentChats')}</span>
               </div>
 
               {filteredGeneral.length === 0 ? (
-                <div className="p-2.5 text-center text-[var(--text-muted)] text-[0.75rem]">
-                  No general chats.
+                <div className="p-2 text-center text-[var(--text-muted)] text-[0.72rem]">
+                  No conversations yet.
                 </div>
               ) : (
                 filteredGeneral.map((conv) => {
@@ -493,22 +437,17 @@ export function Sidebar({
                       key={conv.id}
                       onClick={() => onSelectConversation(conv.id)}
                       className={clsx(
-                        "group flex items-center p-2 rounded-xl cursor-pointer transition-colors relative border gap-2.5",
+                        "group flex items-center py-1.5 px-2.5 rounded-lg cursor-pointer transition-colors relative border gap-2 text-xs",
                         isActive
-                          ? "bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] border-[var(--accent)] text-[var(--text-primary)] font-semibold shadow-xs"
-                          : "border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] hover:text-[var(--text-primary)]",
+                          ? "bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] border-[color-mix(in_srgb,var(--accent)_30%,transparent)] text-[var(--text-primary)] font-medium"
+                          : "border-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] hover:text-[var(--text-primary)]",
                         conv.is_pinned && !isActive && "border-l-2 border-l-[var(--accent)]"
                       )}
                     >
-                      <MessageSquare size={14} className={isActive ? "text-[var(--accent)]" : "text-[var(--text-muted)]"} />
+                      <MessageSquare size={13} className={isActive ? "text-[var(--accent)] shrink-0" : "text-[var(--text-muted)] shrink-0 group-hover:text-[var(--text-primary)]"} />
                       
-                      <div className="flex-1 flex flex-col overflow-hidden">
-                        <div className="text-xs font-medium truncate" title={conv.title}>
-                          {conv.title}
-                        </div>
-                        <div className="text-[0.68rem] text-[var(--text-muted)]">
-                          {new Date(conv.updated_at).toLocaleDateString()}
-                        </div>
+                      <div className="flex-1 truncate" title={conv.title}>
+                        {conv.title}
                       </div>
 
                       {isActive && (
@@ -516,7 +455,7 @@ export function Sidebar({
                       )}
 
                       {/* Hover action menu */}
-                      <div className="hidden group-hover:flex items-center gap-1 absolute right-2 bg-[var(--bg-surface)] px-1.5 py-0.5 rounded-lg border border-[var(--border-subtle)] shadow-xs">
+                      <div className="hidden group-hover:flex items-center gap-0.5 absolute right-1.5 bg-[var(--bg-surface)] px-1 py-0.5 rounded border border-[var(--border-subtle)] shadow-xs">
                         <button 
                           onClick={(e) => {
                             e.stopPropagation();
@@ -525,16 +464,16 @@ export function Sidebar({
                           className="p-1 text-[var(--text-muted)] hover:text-[var(--accent)] rounded transition-colors border-none bg-transparent cursor-pointer"
                           title="Move to Project"
                         >
-                          <FolderPlus size={12} />
+                          <Folder size={11} />
                         </button>
                         <button onClick={(e) => handleTogglePin(e, conv.id, conv.is_pinned)} className="p-1 text-[var(--text-muted)] hover:text-[var(--accent)] rounded transition-colors border-none bg-transparent cursor-pointer" title={conv.is_pinned ? "Unpin" : "Pin"}>
-                          {conv.is_pinned ? <PinOff size={12} /> : <Pin size={12} />}
+                          {conv.is_pinned ? <PinOff size={11} /> : <Pin size={11} />}
                         </button>
                         <button onClick={(e) => handleRename(e, conv.id, conv.title)} className="p-1 text-[var(--text-muted)] hover:text-[var(--accent)] rounded transition-colors border-none bg-transparent cursor-pointer" title="Rename">
-                          <Edit2 size={12} />
+                          <Edit2 size={11} />
                         </button>
                         <button onClick={(e) => handleDelete(e, conv.id)} className="p-1 text-[var(--text-muted)] hover:text-red-500 rounded transition-colors border-none bg-transparent cursor-pointer" title="Delete">
-                          <Trash2 size={12} />
+                          <Trash2 size={11} />
                         </button>
                       </div>
                     </div>
@@ -547,20 +486,20 @@ export function Sidebar({
       </div>
 
       {/* User Profile Footer */}
-      <div className="p-3 border-t border-[var(--border-subtle)]">
+      <div className="p-2.5 border-t border-[var(--border-subtle)]">
         <button
           type="button"
           onClick={() => setIsProfileOpen(true)}
-          className="flex w-full items-center gap-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2.5 text-left shadow-xs transition-colors hover:bg-[var(--bg-surface-hover)] cursor-pointer"
+          className="flex w-full items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2 text-left shadow-xs transition-colors hover:bg-[var(--bg-surface-hover)] cursor-pointer"
         >
-          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-primary)] text-xs font-semibold text-[var(--text-primary)]">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-primary)] text-xs font-semibold text-[var(--text-primary)]">
             {username ? username.charAt(0).toUpperCase() : userId ? userId.charAt(0).toUpperCase() : 'U'}
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-xs font-semibold text-[var(--text-primary)]">{username || (userId ? `User ${userId.slice(0, 8)}` : 'Profile')}</div>
-            <div className="mt-0.5 flex items-center gap-1.5 text-[0.68rem] text-[var(--text-secondary)]">
+            <div className="flex items-center gap-1.5 text-[0.65rem] text-[var(--text-secondary)]">
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
-              {isAdmin ? 'Admin' : 'User'} • Profile
+              {isAdmin ? 'Admin' : 'User'}
             </div>
           </div>
         </button>
@@ -604,18 +543,18 @@ export function Sidebar({
             role="dialog"
             aria-modal="true"
             aria-label="User profile"
-            className="w-full max-w-md rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 shadow-2xl"
+            className="w-full max-w-sm rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-primary)] text-base font-semibold text-[var(--text-primary)]">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-primary)] text-sm font-semibold text-[var(--text-primary)]">
                   {username ? username.charAt(0).toUpperCase() : userId ? userId.charAt(0).toUpperCase() : 'U'}
                 </div>
                 <div>
-                  <div className="text-base font-semibold text-[var(--text-primary)]">{username || (userId ? `User ${userId.slice(0, 8)}` : 'Profile')}</div>
-                  <div className="mt-1 flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-                    <span className="h-2 w-2 rounded-full bg-[var(--success)]" />
+                  <div className="text-sm font-semibold text-[var(--text-primary)]">{username || (userId ? `User ${userId.slice(0, 8)}` : 'Profile')}</div>
+                  <div className="mt-0.5 flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
                     {isAdmin ? 'Admin' : 'User'} • Active
                   </div>
                 </div>
@@ -624,14 +563,14 @@ export function Sidebar({
               <button
                 type="button"
                 onClick={() => setIsProfileOpen(false)}
-                className="rounded-full p-2 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)] border-none bg-transparent cursor-pointer"
+                className="rounded-full p-1.5 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)] border-none bg-transparent cursor-pointer"
                 aria-label="Close profile"
               >
                 ×
               </button>
             </div>
 
-            <div className="mt-5 space-y-2">
+            <div className="mt-4 space-y-1.5">
               <button
                 onClick={() => {
                   setIsProfileOpen(false);
@@ -639,9 +578,9 @@ export function Sidebar({
                   setFeedbackError('');
                   setIsFeedbackOpen(true);
                 }}
-                className="flex w-full items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] px-3 py-2.5 text-left text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--text-primary)] cursor-pointer"
+                className="flex w-full items-center gap-2.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)] px-3 py-2 text-left text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--text-primary)] cursor-pointer"
               >
-                <Lightbulb size={16} />
+                <Lightbulb size={15} />
                 <span className="text-xs font-medium">Share feedback</span>
               </button>
 
@@ -651,9 +590,9 @@ export function Sidebar({
                     setIsProfileOpen(false);
                     navigate('/admin');
                   }}
-                  className="flex w-full items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] px-3 py-2.5 text-left text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--text-primary)] cursor-pointer"
+                  className="flex w-full items-center gap-2.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)] px-3 py-2 text-left text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--text-primary)] cursor-pointer"
                 >
-                  <Settings size={16} />
+                  <Settings size={15} />
                   <span className="text-xs font-medium">Admin Dashboard</span>
                 </button>
               )}
@@ -663,9 +602,9 @@ export function Sidebar({
                   setIsProfileOpen(false);
                   setIsChangePasswordOpen(true);
                 }}
-                className="flex w-full items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] px-3 py-2.5 text-left text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--text-primary)] cursor-pointer"
+                className="flex w-full items-center gap-2.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)] px-3 py-2 text-left text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--text-primary)] cursor-pointer"
               >
-                <Lock size={16} />
+                <Lock size={15} />
                 <span className="text-xs font-medium">Change password</span>
               </button>
 
@@ -674,9 +613,9 @@ export function Sidebar({
                   setIsProfileOpen(false);
                   handleLogout();
                 }}
-                className="flex w-full items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] px-3 py-2.5 text-left text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--text-primary)] cursor-pointer"
+                className="flex w-full items-center gap-2.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)] px-3 py-2 text-left text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--text-primary)] cursor-pointer"
               >
-                <LogOut size={16} />
+                <LogOut size={15} />
                 <span className="text-xs font-medium">Log out</span>
               </button>
             </div>
@@ -687,25 +626,25 @@ export function Sidebar({
       {/* Feedback Modal */}
       {isFeedbackOpen && (
         <div className="fixed inset-0 z-[75] flex items-center justify-center bg-black/60 p-4" onClick={() => setIsFeedbackOpen(false)}>
-          <form role="dialog" aria-modal="true" aria-label="Share feedback" onSubmit={submitSuggestion} onClick={(event) => event.stopPropagation()} className="w-full max-w-md rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 shadow-2xl">
-            <div className="flex items-start justify-between gap-4"><div><h2 className="text-base font-semibold text-[var(--text-primary)]">Help improve bbot</h2><p className="mt-1 text-xs text-[var(--text-secondary)]">Share an idea or report something that could work better.</p></div><button type="button" onClick={() => setIsFeedbackOpen(false)} aria-label="Close feedback" className="p-1 text-xl text-[var(--text-secondary)] border-none bg-transparent cursor-pointer">×</button></div>
-            {feedbackSent ? <div className="mt-6 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-xs text-[var(--success)]">Thanks. Your suggestion was sent for review.</div> : <>
-              {feedbackError && <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-[var(--error)]">{feedbackError}</div>}
-              <label className="mt-4 block text-xs font-medium text-[var(--text-primary)]">Who is this feedback for?
-                <select value={feedbackCategory} onChange={(event) => setFeedbackCategory(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] p-2.5 text-xs text-[var(--text-primary)] font-medium">
+          <form role="dialog" aria-modal="true" aria-label="Share feedback" onSubmit={submitSuggestion} onClick={(event) => event.stopPropagation()} className="w-full max-w-sm rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4"><div><h2 className="text-sm font-semibold text-[var(--text-primary)]">Help improve bbot</h2><p className="mt-0.5 text-xs text-[var(--text-secondary)]">Share an idea or report an issue.</p></div><button type="button" onClick={() => setIsFeedbackOpen(false)} aria-label="Close feedback" className="p-1 text-lg text-[var(--text-secondary)] border-none bg-transparent cursor-pointer">×</button></div>
+            {feedbackSent ? <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-[var(--success)]">Thanks. Your suggestion was sent for review.</div> : <>
+              {feedbackError && <div className="mt-3 rounded-xl border border-red-500/30 bg-red-500/10 p-2.5 text-xs text-[var(--error)]">{feedbackError}</div>}
+              <label className="mt-3 block text-xs font-medium text-[var(--text-primary)]">Category
+                <select value={feedbackCategory} onChange={(event) => setFeedbackCategory(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)] p-2 text-xs text-[var(--text-primary)] font-medium">
                   <option value="AI Training Rule">Train the AI (Global Memory Rule)</option>
-                  <option value="App Bug / Feature">Admin Support (Bugs / New App Features)</option>
+                  <option value="App Bug / Feature">Admin Support (Bugs / Features)</option>
                 </select>
               </label>
-              <label className="mt-4 block text-xs font-medium text-[var(--text-primary)]">Your suggestion<textarea required maxLength={2000} value={feedbackText} onChange={(event) => setFeedbackText(event.target.value)} rows={4} placeholder={feedbackCategory === 'AI Training Rule' ? "E.g. Always answer in Hindi, Never mention pricing..." : "E.g. App is slow, can we add Excel support..."} className="mt-1.5 w-full resize-y rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] p-2.5 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent)]" /><span className="mt-1 block text-right text-[0.65rem] font-normal text-[var(--text-muted)]">{feedbackText.length}/2000</span></label>
-              <button type="submit" disabled={!feedbackText.trim()} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-white hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer border-none"><Send size={13} />Send suggestion</button>
+              <label className="mt-3 block text-xs font-medium text-[var(--text-primary)]">Your suggestion<textarea required maxLength={2000} value={feedbackText} onChange={(event) => setFeedbackText(event.target.value)} rows={3} placeholder={feedbackCategory === 'AI Training Rule' ? "E.g. Always answer in Hindi..." : "E.g. Can we add Excel support..."} className="mt-1 w-full resize-y rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)] p-2 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent)]" /><span className="mt-0.5 block text-right text-[0.65rem] font-normal text-[var(--text-muted)]">{feedbackText.length}/2000</span></label>
+              <button type="submit" disabled={!feedbackText.trim()} className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-white hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer border-none"><Send size={12} />Send suggestion</button>
             </>}
           </form>
         </div>
       )}
 
       {/* Change Password Modal */}
-      {isChangePasswordOpen && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setIsChangePasswordOpen(false)}><form onSubmit={changePassword} onClick={(event) => event.stopPropagation()} className="w-full max-w-md space-y-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-6"><h2 className="text-base font-semibold">Change password</h2>{passwordError && <p className="text-xs text-[var(--error)]">{passwordError}</p>}{passwordMessage && <p className="text-xs text-[var(--accent)]">{passwordMessage}</p>}{(['current','next','confirm'] as const).map((key) => <input key={key} type="password" value={passwords[key]} onChange={(event) => setPasswords({ ...passwords, [key]: event.target.value })} placeholder={key === 'current' ? 'Current password' : key === 'next' ? 'New password' : 'Confirm new password'} className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] p-2.5 text-xs text-[var(--text-primary)]" required />)}<p className="text-[0.7rem] text-[var(--text-muted)]">Password: 10+ characters, at most 72 UTF-8 bytes, not your username, and not a common password.</p><div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setIsChangePasswordOpen(false)} className="rounded-xl px-3 py-1.5 text-xs text-[var(--text-secondary)] border-none bg-transparent cursor-pointer">Cancel</button><button type="submit" className="rounded-xl bg-[var(--accent)] px-3 py-1.5 text-xs text-white border-none cursor-pointer">Change password</button></div></form></div>}
+      {isChangePasswordOpen && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setIsChangePasswordOpen(false)}><form onSubmit={changePassword} onClick={(event) => event.stopPropagation()} className="w-full max-w-sm space-y-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5"><h2 className="text-sm font-semibold">Change password</h2>{passwordError && <p className="text-xs text-[var(--error)]">{passwordError}</p>}{passwordMessage && <p className="text-xs text-[var(--accent)]">{passwordMessage}</p>}{(['current','next','confirm'] as const).map((key) => <input key={key} type="password" value={passwords[key]} onChange={(event) => setPasswords({ ...passwords, [key]: event.target.value })} placeholder={key === 'current' ? 'Current password' : key === 'next' ? 'New password' : 'Confirm new password'} className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)] p-2 text-xs text-[var(--text-primary)]" required />)}<p className="text-[0.68rem] text-[var(--text-muted)]">Password: 10+ characters, at most 72 UTF-8 bytes.</p><div className="flex justify-end gap-2 pt-1"><button type="button" onClick={() => setIsChangePasswordOpen(false)} className="rounded-lg px-2.5 py-1 text-xs text-[var(--text-secondary)] border-none bg-transparent cursor-pointer">Cancel</button><button type="submit" className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs text-white border-none cursor-pointer">Change password</button></div></form></div>}
     </div>
   );
 }

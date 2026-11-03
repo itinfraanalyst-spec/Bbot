@@ -194,15 +194,12 @@ export function ChatPage() {
             {/* Project Breadcrumb */}
             {currentProject && (
               <div 
-                className="hidden xs:flex items-center gap-1.5 px-2 py-0.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[0.7rem] shrink-0 font-medium max-w-[130px] sm:max-w-[190px]"
-                title={`Project: ${currentProject.name} (${currentProject.progress}% complete)`}
+                className="hidden xs:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[0.72rem] shrink-0 font-medium max-w-[150px] sm:max-w-[200px]"
+                title={`Project: ${currentProject.name}`}
               >
-                <Folder size={11} style={{ color: currentProject.color || '#d17b24' }} className="shrink-0" />
+                <Folder size={13} style={{ color: currentProject.color || '#d17b24' }} className="shrink-0" />
                 <span className="truncate font-semibold text-[var(--text-primary)]">
                   {currentProject.name}
-                </span>
-                <span className="shrink-0 text-[0.62rem] font-bold text-[var(--accent)] bg-[var(--bg-primary)] px-1 py-0.2 rounded border border-[var(--border-subtle)]">
-                  {currentProject.progress}%
                 </span>
               </div>
             )}

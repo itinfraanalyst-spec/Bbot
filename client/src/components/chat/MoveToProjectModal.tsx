@@ -67,9 +67,7 @@ export function MoveToProjectModal({
             }`}
           >
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-md bg-stone-500/20 flex items-center justify-center text-stone-500">
-                •
-              </div>
+              <span className="text-[var(--text-muted)]">•</span>
               <span>General (No Project)</span>
             </div>
             {selectedId === null && <Check size={14} className="text-[var(--accent)]" />}
@@ -89,24 +87,16 @@ export function MoveToProjectModal({
                 }`}
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <div
-                    className="w-5 h-5 rounded-md flex items-center justify-center text-white shrink-0 text-[0.65rem]"
-                    style={{ backgroundColor: proj.color || '#d97706' }}
-                  >
-                    <Folder size={11} />
-                  </div>
+                  <Folder size={13} style={{ color: proj.color || '#d97706' }} className="shrink-0" />
                   <span className="truncate">{proj.name}</span>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-[0.68rem] font-bold text-[var(--accent)]">{proj.progress}%</span>
-                  {isSelected && <Check size={14} className="text-[var(--accent)]" />}
-                </div>
+                {isSelected && <Check size={14} className="text-[var(--accent)]" />}
               </div>
             );
           })}
         </div>
 
-        <div className="flex items-center justify-end gap-2 pt-4 mt-3 border-t border-[var(--border-subtle)]">
+        <div className="flex items-center justify-end gap-2 pt-3.5 mt-3 border-t border-[var(--border-subtle)]">
           <button
             type="button"
             onClick={onClose}
@@ -118,7 +108,7 @@ export function MoveToProjectModal({
             type="button"
             disabled={isSubmitting}
             onClick={handleSave}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-semibold transition-all cursor-pointer shadow-xs"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-semibold transition-all cursor-pointer shadow-xs border-none"
           >
             <ArrowRight size={13} />
             {isSubmitting ? 'Moving...' : 'Move Thread'}
@@ -128,4 +118,3 @@ export function MoveToProjectModal({
     </div>
   );
 }
-
