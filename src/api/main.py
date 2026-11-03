@@ -255,6 +255,10 @@ async def serve_spa(full_path: str):
 
     if file_path.is_file():
         return FileResponse(file_path)
+
+    # Missing static assets should 404, not fallback to index.html
+    if full_path.startswith("assets/"):
+        raise HTTPException(status_code=404, detail="Static asset chunk not found")
     
     index_path = os.path.join(client_path, "index.html")
     if os.path.exists(index_path):

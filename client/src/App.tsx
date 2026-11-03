@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react';
+import type { ComponentType } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
@@ -10,16 +11,41 @@ import { ChatPage } from './pages/ChatPage';
 import { LanguageProvider } from './contexts/LanguageContext';
 import './index.css';
 
-const VisualStudioPage = lazy(() =>
+function lazyWithRetry<T extends ComponentType<any>>(
+  factory: () => Promise<{ default: T }>
+) {
+  return lazy(async () => {
+    try {
+      return await factory();
+    } catch (error: any) {
+      const msg = error?.message || '';
+      if (
+        msg.includes('Failed to fetch dynamically imported module') ||
+        msg.includes('dynamically imported module') ||
+        error?.name === 'ChunkLoadError'
+      ) {
+        const hasReloaded = sessionStorage.getItem('chunk_reload');
+        if (!hasReloaded) {
+          sessionStorage.setItem('chunk_reload', 'true');
+          window.location.reload();
+          return new Promise<{ default: T }>(() => {});
+        }
+      }
+      throw error;
+    }
+  });
+}
+
+const VisualStudioPage = lazyWithRetry(() =>
   import('./pages/VisualStudioPage').then((m) => ({ default: m.VisualStudioPage }))
 );
-const AdminPage = lazy(() =>
+const AdminPage = lazyWithRetry(() =>
   import('./pages/AdminPage').then((module) => ({ default: module.AdminPage }))
 );
-const ResetPasswordPage = lazy(() =>
+const ResetPasswordPage = lazyWithRetry(() =>
   import('./pages/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage }))
 );
-const AdminRecoveryPage = lazy(() =>
+const AdminRecoveryPage = lazyWithRetry(() =>
   import('./pages/AdminRecoveryPage').then((m) => ({ default: m.AdminRecoveryPage }))
 );
 
