@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { ChatArea } from '../components/chat/ChatArea';
 import { ChatInput } from '../components/chat/ChatInput';
@@ -27,16 +27,19 @@ export function ChatPage() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const { conversations = [] } = useConversations();
   const { projects = [] } = useProjects();
+  
+  const handleConversationNotFound = useCallback(() => {
+    setSelectedConvId((prev) => (prev !== null ? null : prev));
+    try {
+      localStorage.removeItem(conversationStorageKey);
+    } catch {}
+  }, [conversationStorageKey]);
+
   const { messages, setMessages, isGenerating, sendMessage, stopGeneration, regenerateMessage, currentConversationId } = useChat(
     selectedConvId, 
     '/api/chat', 
     conversationStorageKey,
-    () => {
-      setSelectedConvId(null);
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem(conversationStorageKey);
-      }
-    }
+    handleConversationNotFound
   );
   const activeConversation = (conversations || []).find(c => c.id === currentConversationId);
   const currentProjectId = activeConversation?.project_id || activeProjectId;
@@ -51,13 +54,11 @@ export function ChatPage() {
     if (!userId) return;
     const storedId = localStorage.getItem(conversationStorageKey);
     if (storedId) {
-      if (selectedConvId !== storedId) {
-        setSelectedConvId(storedId);
-      }
-    } else if (!explicitNewChat && conversations.length > 0 && !selectedConvId) {
-      setSelectedConvId(conversations[0].id);
+      setSelectedConvId((prev) => (prev !== storedId ? storedId : prev));
+    } else if (!explicitNewChat && conversations.length > 0) {
+      setSelectedConvId((prev) => (!prev && conversations[0]?.id ? conversations[0].id : prev));
     }
-  }, [conversationStorageKey, userId, conversations.length, explicitNewChat, selectedConvId]);
+  }, [conversationStorageKey, userId, conversations.length, explicitNewChat]);
 
   useEffect(() => {
     if (!isHelpOpen) return;

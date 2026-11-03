@@ -27,6 +27,11 @@ export function useChat(
   const [messages, setMessages] = useState<Message[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const failedConvIdsRef = useRef<Set<string>>(new Set());
+  const onNotFoundRef = useRef(onConversationNotFound);
+
+  useEffect(() => {
+    onNotFoundRef.current = onConversationNotFound;
+  }, [onConversationNotFound]);
 
   const resolveConversationId = useCallback((providedId: string | null | undefined) => {
     if (providedId !== undefined) {
@@ -51,14 +56,17 @@ export function useChat(
     if (nextConversationId) {
       if (failedConvIdsRef.current.has(nextConversationId)) {
         if (!cancelled) {
-          setCurrentConversationId(null);
-          setMessages([]);
-          if (onConversationNotFound) onConversationNotFound();
+          setCurrentConversationId((prev) => (prev !== null ? null : prev));
+          setMessages((prev) => (prev.length > 0 ? [] : prev));
+          onNotFoundRef.current?.();
         }
         return;
       }
 
-      if (!cancelled) setCurrentConversationId(nextConversationId);
+      if (!cancelled) {
+        setCurrentConversationId((prev) => (prev !== nextConversationId ? nextConversationId : prev));
+      }
+      
       // Fetch history
       fetch(`/api/conversations/${nextConversationId}`, {
         credentials: "include"
@@ -68,9 +76,9 @@ export function useChat(
         if (res.status === 403 || res.status === 404) {
           failedConvIdsRef.current.add(nextConversationId);
           localStorage.removeItem(storageKey);
-          setCurrentConversationId(null);
-          setMessages([]);
-          if (onConversationNotFound) onConversationNotFound();
+          setCurrentConversationId((prev) => (prev !== null ? null : prev));
+          setMessages((prev) => (prev.length > 0 ? [] : prev));
+          onNotFoundRef.current?.();
           return null;
         }
         return res.json();
@@ -84,14 +92,16 @@ export function useChat(
         if (!cancelled) console.error("Failed to load history", err);
       });
     } else {
-      setCurrentConversationId(null);
-      setMessages([]);
+      if (!cancelled) {
+        setCurrentConversationId((prev) => (prev !== null ? null : prev));
+        setMessages((prev) => (prev.length > 0 ? [] : prev));
+      }
     }
 
     return () => {
       cancelled = true;
     };
-  }, [initialConversationId, storageKey, resolveConversationId, onConversationNotFound]);
+  }, [initialConversationId, storageKey, resolveConversationId]);
 
   useEffect(() => {
     if (currentConversationId) {
