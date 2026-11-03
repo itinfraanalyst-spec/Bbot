@@ -170,32 +170,36 @@ export function ChatPage() {
           <div className="text-[0.75rem] opacity-85">{t('testingBannerSubtitle')}</div>
         </div>
 
-        <header className="min-h-[50px] sm:min-h-[60px] px-2.5 sm:px-6 py-1.5 sm:py-3 border-b border-[var(--border-subtle)] flex items-center justify-between gap-1.5 sm:gap-4 shrink-0 bg-[var(--bg-primary)] z-10 w-full overflow-hidden">
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
+        <header className="min-h-[48px] sm:min-h-[56px] px-2.5 sm:px-5 py-1 sm:py-2 border-b border-[var(--border-subtle)] flex items-center justify-between gap-1 sm:gap-3 shrink-0 bg-[var(--bg-primary)] z-30 w-full relative">
+          {/* Left: Menu & Conversation Title */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 shrink">
             <button 
               onClick={() => setIsSidebarOpen(true)}
-              className="md:hidden w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] transition-colors border-none bg-transparent cursor-pointer shrink-0"
+              className="md:hidden w-8 h-8 flex items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] transition-colors border-none bg-transparent cursor-pointer shrink-0"
               aria-label="Open sidebar"
             >
-              <Menu size={19} />
+              <Menu size={18} />
             </button>
-            <div className="flex items-center gap-1.5">
-              <h3 className="text-xs sm:text-[0.95rem] font-semibold text-[var(--text-primary)] truncate max-w-[85px] xs:max-w-[120px] sm:max-w-none">
-                {currentConversationId ? t('conversation') : t('newChat')}
-              </h3>
-            </div>
-            
+            <h3 className="text-xs sm:text-sm font-semibold text-[var(--text-primary)] truncate max-w-[90px] xs:max-w-[130px] sm:max-w-none">
+              {currentConversationId ? t('conversation') : t('newChat')}
+            </h3>
+
             {/* Attached Docs */}
-            {currentConversationId && documents.length > 0 && (
-              <div className="hidden lg:flex min-w-0 gap-2 items-center overflow-x-auto max-w-[180px]">
+            {currentConversationId && (documents.length > 0 || uploadError) && (
+              <div className="hidden lg:flex min-w-0 gap-1.5 items-center max-w-[200px]">
+                {uploadError && (
+                  <div className="text-[var(--error)] text-[0.7rem] truncate bg-[rgba(250,82,82,0.1)] px-1.5 py-0.5 rounded-[var(--radius-sm)]">
+                    {uploadError}
+                  </div>
+                )}
                 {documents.map((doc) => (
                   <div 
                     key={doc.id} 
-                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded-[var(--radius-sm)] border text-[0.72rem] truncate
+                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded-[var(--radius-sm)] border text-[0.7rem] truncate
                       ${doc.status === 'FAILED' ? 'bg-[rgba(250,82,82,0.1)] border-[rgba(250,82,82,0.3)] text-[var(--error)]' : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-secondary)]'}
                     `}
                   >
-                    <span className="truncate font-medium" title={doc.filename}>{doc.filename}</span>
+                    <span className="truncate font-medium max-w-[100px]" title={doc.filename}>{doc.filename}</span>
                     <button 
                       onClick={() => detachDocument(doc.id)}
                       className="text-[var(--text-muted)] hover:text-[var(--error)] transition-colors shrink-0 cursor-pointer border-none bg-transparent"
@@ -205,31 +209,23 @@ export function ChatPage() {
                     </button>
                   </div>
                 ))}
-                {uploadError && (
-                  <div className="text-[var(--error)] text-[0.72rem] flex items-center gap-1 bg-[rgba(250,82,82,0.1)] px-2 py-0.5 rounded-[var(--radius-sm)]">
-                    {uploadError}
-                  </div>
-                )}
               </div>
             )}
           </div>
           
-          {/* Horizontally scrollable actions row on mobile with zero cut-off */}
-          <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar scroll-smooth py-1 px-0.5 shrink min-w-0 justify-end flex-nowrap">
-            {/* Language Selector Dropdown */}
-            <div className="shrink-0">
-              <LanguageSelector />
-            </div>
+          {/* Right: Perfectly fitted action buttons with zero clipping or overlapping */}
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 justify-end">
+            <LanguageSelector />
 
             {/* Translate Chat Button when non-English */}
             {messages.length > 0 && language !== 'en' && (
               <button
                 onClick={handleTranslateAll}
                 disabled={isTranslatingAll}
-                className="shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-[var(--accent)] hover:bg-[color-mix(in_srgb,var(--accent)_22%,transparent)] border border-[color-mix(in_srgb,var(--accent)_30%,transparent)] text-[0.72rem] sm:text-xs font-semibold transition-all cursor-pointer disabled:opacity-50 shadow-xs"
+                className="flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-lg bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-[var(--accent)] hover:bg-[color-mix(in_srgb,var(--accent)_22%,transparent)] border border-[color-mix(in_srgb,var(--accent)_30%,transparent)] text-[0.7rem] sm:text-xs font-semibold transition-all cursor-pointer disabled:opacity-50 shadow-xs shrink-0"
                 title={`${t('translateChat')} (${currentLanguageOption.nativeName})`}
               >
-                {isTranslatingAll ? <Loader2 size={13} className="animate-spin" /> : <Languages size={13} />}
+                {isTranslatingAll ? <Loader2 size={12} className="animate-spin" /> : <Languages size={12} />}
                 <span className="hidden sm:inline">{isTranslatingAll ? t('translating') : t('translateChat')}</span>
               </button>
             )}
@@ -237,31 +233,30 @@ export function ChatPage() {
             {/* Visual Studio Link */}
             <Link
               to="/studio"
-              className="shrink-0 flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl bg-violet-50 hover:bg-violet-100 text-violet-900 hover:text-violet-950 border border-violet-300 hover:border-violet-500 text-[0.72rem] sm:text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] shadow-xs dark:bg-gradient-to-r dark:from-violet-600/20 dark:via-fuchsia-600/20 dark:to-amber-500/20 dark:border-violet-500/40 dark:text-violet-300 dark:hover:text-white dark:hover:border-violet-400"
+              className="flex items-center gap-1 px-1.5 sm:px-2.5 py-1 rounded-lg bg-violet-50 hover:bg-violet-100 text-violet-900 hover:text-violet-950 border border-violet-300 hover:border-violet-400 text-[0.7rem] sm:text-xs font-bold transition-all shadow-xs dark:bg-violet-600/15 dark:border-violet-500/30 dark:text-violet-300 dark:hover:text-white shrink-0"
               title="Open bbot Visual Studio"
             >
-              <Sparkles size={13} className="text-amber-600 dark:text-amber-300 shrink-0" />
+              <Sparkles size={12} className="text-amber-600 dark:text-amber-300 shrink-0" />
               <span className="hidden sm:inline">{t('visualStudio')}</span>
             </Link>
 
-            {/* Export Buttons - Fully accessible & scrollable on mobile */}
+            {/* Export Buttons */}
             {messages.length > 0 && (
-              <div className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
-                <span className="hidden sm:inline text-[0.65rem] text-[var(--text-muted)] font-bold uppercase tracking-wider mr-0.5">{t('export')}</span>
-                <button onClick={() => handleExport('md')} className="px-1.5 py-0.5 rounded text-[0.7rem] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 dark:text-emerald-300 dark:bg-emerald-500/10 dark:border-emerald-500/30 transition-all cursor-pointer" title="Export as Markdown">
+              <div className="flex items-center gap-0.5 px-1 py-0.5 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] shrink-0">
+                <button onClick={() => handleExport('md')} className="px-1.5 py-0.5 rounded text-[0.68rem] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 dark:text-emerald-300 dark:bg-emerald-500/10 dark:border-emerald-500/30 transition-all cursor-pointer" title="Export as Markdown">
                   MD
                 </button>
-                <button onClick={() => handleExport('json')} className="px-1.5 py-0.5 rounded text-[0.7rem] font-bold text-cyan-800 bg-cyan-50 hover:bg-cyan-100 border border-cyan-300 dark:text-cyan-300 dark:bg-cyan-500/10 dark:border-cyan-500/30 transition-all cursor-pointer" title="Export as JSON">
+                <button onClick={() => handleExport('json')} className="px-1.5 py-0.5 rounded text-[0.68rem] font-bold text-cyan-800 bg-cyan-50 hover:bg-cyan-100 border border-cyan-300 dark:text-cyan-300 dark:bg-cyan-500/10 dark:border-cyan-500/30 transition-all cursor-pointer" title="Export as JSON">
                   JSON
                 </button>
               </div>
             )}
 
-            <button onClick={toggleTheme} className="shrink-0 w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] transition-colors border-none bg-transparent cursor-pointer" title="Toggle theme">
-              {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+            <button onClick={toggleTheme} className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] transition-colors border-none bg-transparent cursor-pointer shrink-0" title="Toggle theme">
+              {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
             </button>
-            <button onClick={() => setIsHelpOpen(true)} className="shrink-0 w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] transition-colors border-none bg-transparent cursor-pointer" title="Help" aria-label="Open help">
-              <HelpCircle size={17} />
+            <button onClick={() => setIsHelpOpen(true)} className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] transition-colors border-none bg-transparent cursor-pointer shrink-0" title="Help" aria-label="Open help">
+              <HelpCircle size={15} />
             </button>
           </div>
         </header>

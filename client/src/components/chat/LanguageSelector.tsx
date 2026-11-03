@@ -46,24 +46,22 @@ export function LanguageSelector({ compact = false, className = '' }: LanguageSe
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] text-[var(--text-primary)] transition-all cursor-pointer shadow-xs focus:outline-none focus:ring-1 focus:ring-[var(--accent)] ${
-          compact ? 'text-xs' : 'text-xs font-medium'
-        }`}
+        className={`flex items-center gap-1 sm:gap-1.5 ${compact ? "px-1.5 py-1 text-[0.7rem]" : "px-2 sm:px-2.5 py-1 sm:py-1.5 text-[0.72rem] sm:text-xs"} rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] text-[var(--text-primary)] transition-all cursor-pointer shadow-xs focus:outline-none focus:ring-1 focus:ring-[var(--accent)] font-medium shrink-0`}
         title={`Language: ${currentLanguageOption.englishName} (${currentLanguageOption.nativeName})`}
         aria-haspopup="true"
         aria-expanded={isOpen}
       >
-        <Globe size={14} className="text-[var(--accent)] shrink-0" />
+        <Globe size={13} className="text-[var(--accent)] shrink-0 hidden xs:inline" />
         <span className="shrink-0">{currentLanguageOption.flag}</span>
-        <span className="font-semibold truncate max-w-[85px] sm:max-w-[120px]">
+        <span className="font-semibold truncate max-w-[55px] xs:max-w-[80px] sm:max-w-[120px]">
           {currentLanguageOption.nativeName}
         </span>
-        <ChevronDown size={12} className={`text-[var(--text-muted)] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={11} className={`text-[var(--text-muted)] transition-transform duration-200 shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Dropdown Modal Menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-72 sm:w-80 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute right-0 mt-2 max-w-[calc(100vw-20px)] w-72 sm:w-80 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
           {/* Header */}
           <div className="px-3.5 py-2.5 border-b border-[var(--border-subtle)] bg-[var(--bg-primary)]">
             <div className="flex items-center justify-between">
