@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>TRPW bbot</title>
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('theme');
+          var isDark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.classList.remove('light');
+          } else {
+            document.documentElement.classList.add('light');
+            document.documentElement.classList.remove('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-ixfThyTP.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-Dd_uD5pT.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-charts-yL2M-JQD.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-react-D2XKu0cL.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-mermaid-CfViGqWa.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-query-99LVLFFG.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-CM-R_afX.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

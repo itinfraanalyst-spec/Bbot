@@ -240,3 +240,4 @@ export function ProjectModal({ isOpen, onClose, onSubmit, initialProject }: Proj
     </div>
   );
 }
+

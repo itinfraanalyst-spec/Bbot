@@ -4,8 +4,8 @@ services:
     env: python
     plan: free
     region: oregon
-    buildCommand: "./build.sh"
-    startCommand: "uvicorn src.api.main:app --host 0.0.0.0 --port $PORT"
+    buildCommand: "bash build.sh"
+    startCommand: "sh scripts/start.sh"
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
@@ -27,4 +27,3 @@ services:
         value: "true"
       - key: JWT_SECRET
         generateValue: true
-
