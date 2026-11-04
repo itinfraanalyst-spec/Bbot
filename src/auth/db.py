@@ -119,12 +119,32 @@ def create_registered_user(username: str, password_hash: str) -> dict:
         row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
         return dict(row)
 
+import time
+
+_user_cache = {}
+_USER_CACHE_TTL = 30.0
+
+def invalidate_user_cache(username: str = None):
+    if username:
+        _user_cache.pop(username.strip().lower(), None)
+    else:
+        _user_cache.clear()
+
 def get_user_by_username(username: str) -> dict:
     if not username:
         return None
+    key = username.strip().lower()
+    now = time.time()
+    cached = _user_cache.get(key)
+    if cached and (now - cached[0] < _USER_CACHE_TTL):
+        return cached[1]
+
     with get_db_connection() as conn:
-        row = conn.execute("SELECT * FROM users WHERE LOWER(username) = LOWER(?)", (username.strip(),)).fetchone()
-        return dict(row) if row else None
+        row = conn.execute("SELECT * FROM users WHERE LOWER(username) = LOWER(?)", (key,)).fetchone()
+        res = dict(row) if row else None
+        if res:
+            _user_cache[key] = (now, res)
+        return res
 
 def record_failed_login(username: str, lock_minutes: int = 15):
     with get_db_connection() as conn:
@@ -154,6 +174,7 @@ def record_successful_login(username: str):
         conn.commit()
 
 def bump_token_version(user_id: str) -> int:
+    invalidate_user_cache()
     with get_db_connection() as conn:
         conn.execute("UPDATE users SET token_version = COALESCE(token_version, 0) + 1 WHERE id = ?", (user_id,))
         conn.commit()

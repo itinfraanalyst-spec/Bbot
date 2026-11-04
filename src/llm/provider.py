@@ -173,6 +173,21 @@ import httpx
 from src.core.data_masker import DataMasker
 
 
+_groq_http_client = None
+_groq_client_lock = threading.Lock()
+
+def get_groq_http_client() -> httpx.Client:
+    global _groq_http_client
+    if _groq_http_client is None or _groq_http_client.is_closed:
+        with _groq_client_lock:
+            if _groq_http_client is None or _groq_http_client.is_closed:
+                _groq_http_client = httpx.Client(
+                    timeout=httpx.Timeout(45.0, connect=10.0),
+                    limits=httpx.Limits(max_keepalive_connections=10, max_connections=20, keepalive_expiry=60.0),
+                    http2=True,
+                )
+    return _groq_http_client
+
 class GroqProvider(LLMProvider):
     """
     Ultra-Fast Cloud LLM Provider powered by Groq LPU inference.
@@ -232,7 +247,8 @@ class GroqProvider(LLMProvider):
         last_error = ""
 
         try:
-            with httpx.Client(timeout=45.0) as client:
+            client = get_groq_http_client()
+            if True:
                 # Strictly use only user's chosen Qwen model (preserves model integrity and personality)
                 max_attempts = 4
                 for attempt in range(max_attempts):

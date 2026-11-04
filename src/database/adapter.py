@@ -103,9 +103,29 @@ class PostgresCursorWrapper:
     def __iter__(self):
         return iter(self.fetchall())
 
+import threading
+
+_pg_pool = None
+_pg_pool_lock = threading.Lock()
+
+def get_pg_pool(clean_url: str):
+    global _pg_pool
+    if _pg_pool is None:
+        with _pg_pool_lock:
+            if _pg_pool is None:
+                import psycopg2.pool
+                _pg_pool = psycopg2.pool.ThreadedConnectionPool(
+                    minconn=1,
+                    maxconn=20,
+                    dsn=clean_url,
+                    connect_timeout=15,
+                )
+    return _pg_pool
+
 class PostgresConnectionWrapper:
-    def __init__(self, conn):
+    def __init__(self, conn, pool=None):
         self._conn = conn
+        self._pool = pool
         self.row_factory = None
 
     def cursor(self):
@@ -123,13 +143,31 @@ class PostgresConnectionWrapper:
         return cur
 
     def commit(self):
-        self._conn.commit()
+        try:
+            self._conn.commit()
+        except Exception:
+            pass
 
     def rollback(self):
-        self._conn.rollback()
+        try:
+            self._conn.rollback()
+        except Exception:
+            pass
 
     def close(self):
-        self._conn.close()
+        if self._pool is not None:
+            try:
+                self._pool.putconn(self._conn)
+            except Exception:
+                try:
+                    self._conn.close()
+                except Exception:
+                    pass
+        else:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
 
     def __enter__(self):
         return self
@@ -151,10 +189,19 @@ def connect_db(url: str):
         if clean_url.startswith("postgres://"):
             clean_url = clean_url.replace("postgres://", "postgresql://", 1)
         
-        # Connect to Supabase / PostgreSQL
-        raw_conn = psycopg2.connect(clean_url, connect_timeout=15)
-        raw_conn.autocommit = False
-        return PostgresConnectionWrapper(raw_conn)
+        # Connect to Supabase / PostgreSQL via pool
+        pool = get_pg_pool(clean_url)
+        try:
+            raw_conn = pool.getconn()
+            if raw_conn.closed != 0:
+                pool.putconn(raw_conn, close=True)
+                raw_conn = pool.getconn()
+            raw_conn.autocommit = False
+            return PostgresConnectionWrapper(raw_conn, pool=pool)
+        except Exception:
+            raw_conn = psycopg2.connect(clean_url, connect_timeout=15)
+            raw_conn.autocommit = False
+            return PostgresConnectionWrapper(raw_conn, pool=None)
     else:
         # SQLite
         os.makedirs(os.path.dirname(os.path.abspath(url)) if os.path.dirname(url) else ".", exist_ok=True)

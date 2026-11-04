@@ -12,6 +12,8 @@ export interface Message {
 
 const CHAT_TIMEOUT_MS = 600000; // 10 minutes for slow local LLM inference; avoid aborting valid document-grounded answers
 
+export const conversationMessageCache = new Map<string, Message[]>();
+
 export function useChat(
   initialConversationId: string | null | undefined, 
   chatEndpoint = '/api/chat', 
@@ -72,9 +74,15 @@ export function useChat(
 
       if (!cancelled) {
         setCurrentConversationId(nextConversationId);
+        // Instant switch: load from memory cache immediately if available, otherwise clear stale messages
+        if (conversationMessageCache.has(nextConversationId)) {
+          setMessages(conversationMessageCache.get(nextConversationId)!);
+        } else {
+          setMessages([]);
+        }
       }
       
-      // Fetch history
+      // Fetch history in background
       fetch(`/api/conversations/${nextConversationId}`, {
         credentials: "include"
       })
@@ -92,6 +100,7 @@ export function useChat(
       })
       .then(data => {
         if (!cancelled && data?.messages) {
+          conversationMessageCache.set(nextConversationId, data.messages);
           setMessages(data.messages);
         }
       })

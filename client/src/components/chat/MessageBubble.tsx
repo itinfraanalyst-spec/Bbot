@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, memo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { parseMarkdownTable } from '../../utils/tableParser';
 import { ProcessFlowchart } from './ProcessFlowchart';
@@ -158,7 +158,7 @@ const OPTION_CHIP_THEMES = [
   },
 ];
 
-export function MessageBubble({ message, botName = 'bbot', onRetry, isGenerating = false, onEdit, suggestedPrompts, onSuggestedPrompt }: MessageBubbleProps) {
+function MessageBubbleComponent({ message, botName = 'bbot', onRetry, isGenerating = false, onEdit, suggestedPrompts, onSuggestedPrompt }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const status = message.status ?? 'complete';
   const isError = !isUser && status === 'error';
@@ -646,3 +646,13 @@ export function MessageBubble({ message, botName = 'bbot', onRetry, isGenerating
     </div>
   );
 }
+
+export const MessageBubble = memo(MessageBubbleComponent, (prevProps, nextProps) => {
+  if (prevProps.message.id !== nextProps.message.id) return false;
+  if (prevProps.message.content !== nextProps.message.content) return false;
+  if (prevProps.message.status !== nextProps.message.status) return false;
+  if (prevProps.isGenerating !== nextProps.isGenerating) return false;
+  if (prevProps.botName !== nextProps.botName) return false;
+  if (prevProps.suggestedPrompts !== nextProps.suggestedPrompts) return false;
+  return true;
+});
