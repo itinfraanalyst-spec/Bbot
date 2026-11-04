@@ -18,6 +18,7 @@ interface ChatAreaProps {
   botName?: string;
   onRetry?: (message: Message) => void;
   onEdit?: (messageId: string, newContent: string) => void;
+  onDeleteMessage?: (messageId: string) => void;
   documentsCount?: number;
   onSuggestedPrompt?: (prompt: string) => void;
   username?: string | null;
@@ -154,7 +155,7 @@ export function getSuggestedPrompts(messages: Message[], assistantIndex: number,
   return s.general(context);
 }
 
-export function ChatArea({ messages, isGenerating, botName = 'bbot', onRetry, onEdit, documentsCount = 0, onSuggestedPrompt, username, starterQuestions }: ChatAreaProps) {
+export function ChatArea({ messages, isGenerating, botName = 'bbot', onRetry, onEdit, onDeleteMessage, documentsCount = 0, onSuggestedPrompt, username, starterQuestions }: ChatAreaProps) {
   const { t, language } = useLanguage();
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -352,6 +353,7 @@ export function ChatArea({ messages, isGenerating, botName = 'bbot', onRetry, on
                   message={msg}
                   botName={botName}
                   onRetry={onRetry && msg.status === 'error' ? () => onRetry(msg) : undefined}
+                  onDismiss={onDeleteMessage ? () => onDeleteMessage(msg.id) : undefined}
                   isGenerating={isGenerating}
                   onEdit={onEdit}
                   suggestedPrompts={promptsToShow}

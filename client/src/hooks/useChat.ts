@@ -109,8 +109,8 @@ export function useChat(
       });
     } else {
       if (!cancelled) {
-        setCurrentConversationId((prev) => (prev !== null ? null : prev));
-        setMessages((prev) => (prev.length > 0 ? [] : prev));
+        setCurrentConversationId(null);
+        setMessages([]);
       }
     }
 
@@ -322,9 +322,44 @@ export function useChat(
 
   const stopGeneration = useCallback(() => {
     if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+      try {
+        abortControllerRef.current.abort();
+      } catch {}
       abortControllerRef.current = null;
     }
+    isSendingRef.current = false;
+    setIsGenerating(false);
+    activeAssistantIdRef.current = null;
+    if (flushFrameRef.current !== null) {
+      cancelAnimationFrame(flushFrameRef.current);
+      flushFrameRef.current = null;
+    }
+  }, []);
+
+  const startNewChat = useCallback(() => {
+    if (abortControllerRef.current) {
+      try {
+        abortControllerRef.current.abort();
+      } catch {}
+      abortControllerRef.current = null;
+    }
+    isSendingRef.current = false;
+    setIsGenerating(false);
+    activeAssistantIdRef.current = null;
+    streamingTextRef.current = '';
+    if (flushFrameRef.current !== null) {
+      cancelAnimationFrame(flushFrameRef.current);
+      flushFrameRef.current = null;
+    }
+    setCurrentConversationId(null);
+    setMessages([]);
+    try {
+      localStorage.removeItem(storageKey);
+    } catch {}
+  }, [storageKey]);
+
+  const deleteMessage = useCallback((messageId: string) => {
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
   }, []);
 
   const regenerateMessage = useCallback(async (messageId: string, newContent: string) => {
@@ -486,5 +521,5 @@ export function useChat(
     }
   }, [chatEndpoint, messages, isGenerating, scheduleFlush, currentConversationId]);
 
-  return { messages, setMessages, isGenerating, sendMessage, stopGeneration, regenerateMessage, currentConversationId };
+  return { messages, setMessages, isGenerating, sendMessage, stopGeneration, regenerateMessage, currentConversationId, startNewChat, deleteMessage };
 }

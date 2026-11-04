@@ -109,6 +109,7 @@ interface MessageBubbleProps {
   onRetry?: () => void;
   isGenerating?: boolean;
   onEdit?: (messageId: string, newContent: string) => void;
+  onDismiss?: () => void;
   suggestedPrompts?: string[];
   onSuggestedPrompt?: (prompt: string) => void;
 }
@@ -158,7 +159,7 @@ const OPTION_CHIP_THEMES = [
   },
 ];
 
-function MessageBubbleComponent({ message, botName = 'bbot', onRetry, isGenerating = false, onEdit, suggestedPrompts, onSuggestedPrompt }: MessageBubbleProps) {
+function MessageBubbleComponent({ message, botName = 'bbot', onRetry, onDismiss, isGenerating = false, onEdit, suggestedPrompts, onSuggestedPrompt }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const status = message.status ?? 'complete';
   const isError = !isUser && status === 'error';
@@ -480,15 +481,28 @@ function MessageBubbleComponent({ message, botName = 'bbot', onRetry, isGenerati
         {isAborted && (
           <div className="mt-2 text-[0.8rem] text-[var(--text-muted)]">Response was cut off</div>
         )}
-        {isError && onRetry && (
-          <button
-            type="button"
-            onClick={onRetry}
-            disabled={isGenerating}
-            className="mt-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors underline cursor-pointer border-none bg-transparent p-0"
-          >
-            Retry
-          </button>
+        {isError && (
+          <div className="flex items-center gap-3 mt-2 text-xs">
+            {onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                disabled={isGenerating}
+                className="text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors underline cursor-pointer border-none bg-transparent p-0"
+              >
+                Retry
+              </button>
+            )}
+            {onDismiss && (
+              <button
+                type="button"
+                onClick={onDismiss}
+                className="text-[var(--text-muted)] hover:text-[var(--error)] transition-colors underline cursor-pointer border-none bg-transparent p-0"
+              >
+                Dismiss
+              </button>
+            )}
+          </div>
         )}
 
         {!isUser && !isError && status === 'complete' && (
