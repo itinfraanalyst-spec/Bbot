@@ -26,7 +26,7 @@ class VerifiedKnowledgeRepository:
                     question = excluded.question,
                     correction = excluded.correction,
                     created_by = excluded.created_by,
-                    is_active = 1
+                    is_active = TRUE
             """, (knowledge_id, user_id, source_feedback_message_id, question[:2000], correction[:4000], created_by))
             conn.commit()
             row = conn.execute(
@@ -44,7 +44,7 @@ class VerifiedKnowledgeRepository:
         with get_connection() as conn:
             # We remove the user_id strict filter to make verified learning GLOBAL for the entire organization
             rows = conn.execute(
-                "SELECT * FROM verified_knowledge WHERE is_active = 1 ORDER BY created_at DESC"
+                "SELECT * FROM verified_knowledge WHERE is_active = TRUE ORDER BY created_at DESC"
             ).fetchall()
         ranked = []
         global_rules = []

@@ -52,14 +52,14 @@ class ConversationRepository:
     def pin_conversation(self, conversation_id: str, user_id: str) -> bool:
         with get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("UPDATE conversations SET is_pinned = 1 WHERE id = ? AND user_id = ?", (conversation_id, user_id))
+            cursor.execute("UPDATE conversations SET is_pinned = TRUE WHERE id = ? AND user_id = ?", (conversation_id, user_id))
             conn.commit()
             return cursor.rowcount > 0
 
     def unpin_conversation(self, conversation_id: str, user_id: str) -> bool:
         with get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("UPDATE conversations SET is_pinned = 0 WHERE id = ? AND user_id = ?", (conversation_id, user_id))
+            cursor.execute("UPDATE conversations SET is_pinned = FALSE WHERE id = ? AND user_id = ?", (conversation_id, user_id))
             conn.commit()
             return cursor.rowcount > 0
 

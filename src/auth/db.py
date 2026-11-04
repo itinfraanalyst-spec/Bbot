@@ -282,14 +282,14 @@ def update_user_status(user_id: str, status: str, admin_id: str = None) -> bool:
 
 def get_admin_count() -> int:
     with get_db_connection() as conn:
-        row = conn.execute("SELECT COUNT(*) as count FROM users WHERE is_admin = 1 AND status = 'approved'").fetchone()
+        row = conn.execute("SELECT COUNT(*) as count FROM users WHERE is_admin = TRUE AND status = 'approved'").fetchone()
         return row["count"]
 
 def update_user_role(user_id: str, is_admin: bool) -> bool:
     with get_db_connection() as conn:
         res = conn.execute(
             "UPDATE users SET is_admin = ? WHERE id = ?",
-            (1 if is_admin else 0, user_id)
+            (bool(is_admin), user_id)
         )
         conn.commit()
         return res.rowcount > 0
@@ -320,16 +320,16 @@ def list_active_users() -> list:
 def request_password_reset(username: str) -> bool:
     with get_db_connection() as conn:
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        res = conn.execute("UPDATE users SET reset_requested = 1, reset_requested_at = ? WHERE username COLLATE NOCASE = ?", (now, username.strip()))
+        res = conn.execute("UPDATE users SET reset_requested = TRUE, reset_requested_at = ? WHERE username COLLATE NOCASE = ?", (now, username.strip()))
         conn.commit()
         return res.rowcount > 0
 
 def list_password_reset_requests() -> list:
     with get_db_connection() as conn:
-        rows = conn.execute("SELECT id, username, reset_requested_at FROM users WHERE reset_requested = 1 ORDER BY reset_requested_at ASC").fetchall()
+        rows = conn.execute("SELECT id, username, reset_requested_at FROM users WHERE reset_requested = TRUE ORDER BY reset_requested_at ASC").fetchall()
         return [dict(row) for row in rows]
 
 def resolve_password_reset_request(user_id: str):
     with get_db_connection() as conn:
-        conn.execute("UPDATE users SET reset_requested = 0, reset_requested_at = NULL WHERE id = ?", (user_id,))
+        conn.execute("UPDATE users SET reset_requested = FALSE, reset_requested_at = NULL WHERE id = ?", (user_id,))
         conn.commit()

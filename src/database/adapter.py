@@ -58,8 +58,27 @@ class PostgresCursorWrapper:
     def lastrowid(self):
         return getattr(self._cursor, "lastrowid", None)
 
+    def _translate_sql(self, sql: str) -> str:
+        clean_sql = sql.strip()
+        # Translate SQLite boolean integer syntax to PostgreSQL boolean syntax
+        clean_sql = re.sub(
+            r"\b(is_active|is_pinned|is_admin|reset_requested|is_public|enabled|is_default)\s*=\s*1\b",
+            r"\1 = TRUE",
+            clean_sql,
+            flags=re.IGNORECASE,
+        )
+        clean_sql = re.sub(
+            r"\b(is_active|is_pinned|is_admin|reset_requested|is_public|enabled|is_default)\s*=\s*0\b",
+            r"\1 = FALSE",
+            clean_sql,
+            flags=re.IGNORECASE,
+        )
+        clean_sql = re.sub(r"\s+COLLATE\s+NOCASE\b", "", clean_sql, flags=re.IGNORECASE)
+        return clean_sql
+
     def execute(self, sql, params=None):
         clean_sql = sql.strip()
+        clean_sql = self._translate_sql(clean_sql)
         # Ignore SQLite PRAGMAs in PostgreSQL
         if clean_sql.upper().startswith("PRAGMA "):
             return self
@@ -78,7 +97,8 @@ class PostgresCursorWrapper:
         return self
 
     def executemany(self, sql, seq_of_params):
-        translated_sql = sql.replace("?", "%s")
+        clean_sql = self._translate_sql(sql)
+        translated_sql = clean_sql.replace("?", "%s")
         self._cursor.executemany(translated_sql, seq_of_params)
         return self
 

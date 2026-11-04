@@ -788,7 +788,7 @@ def learning_insights(current_user: dict = Depends(dependencies.require_admin)):
             SELECT COUNT(*) AS count FROM message_feedback
             WHERE rating = 'negative' AND review_status = 'pending'
         """).fetchone()["count"]
-        verified = conn.execute("SELECT COUNT(*) AS count FROM verified_knowledge WHERE is_active = 1").fetchone()["count"]
+        verified = conn.execute("SELECT COUNT(*) AS count FROM verified_knowledge WHERE is_active = TRUE").fetchone()["count"]
     return {
         "repeated_questions": [dict(row) for row in repeated],
         "pending_negative_feedback": pending_negative,

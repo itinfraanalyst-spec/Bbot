@@ -81,7 +81,7 @@ def get_dynamic_allowed_origins(public_key: str) -> set[str]:
     from src.database.connection import get_connection
     import json
     with get_connection() as conn:
-        row = conn.execute("SELECT allowed_origins FROM custom_bot_integrations WHERE public_key = ? AND enabled = 1", (public_key,)).fetchone()
+        row = conn.execute("SELECT allowed_origins FROM custom_bot_integrations WHERE public_key = ? AND enabled = TRUE", (public_key,)).fetchone()
         if not row:
             return set()
         try:

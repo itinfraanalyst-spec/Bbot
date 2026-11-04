@@ -321,7 +321,7 @@ def get_studio_templates(current_user: dict = Depends(get_current_user)) -> List
             SELECT id, name, description, category, diagram_data, node_count, is_public,
                    created_by, created_by_name, created_at
             FROM studio_templates
-            WHERE is_public = 1 OR created_by = ?
+            WHERE is_public = TRUE OR created_by = ?
             ORDER BY created_at DESC
             """,
             (user_id,)

@@ -42,7 +42,7 @@ class MemoryRepository:
 
             existing = conn.execute(
                 "SELECT id, user_id, content, memory_type, source_conversation_id, created_at, last_used_at, is_active "
-                "FROM user_memories WHERE content = ? AND is_active = 1",
+                "FROM user_memories WHERE content = ? AND is_active = TRUE",
                 (content,),
             ).fetchone()
             if existing:
@@ -67,7 +67,7 @@ class MemoryRepository:
 
         with get_connection() as conn:
             rows = conn.execute(
-                "SELECT * FROM user_memories WHERE is_active = 1 ORDER BY created_at DESC"
+                "SELECT * FROM user_memories WHERE is_active = TRUE ORDER BY created_at DESC"
             ).fetchall()
 
             ranked = []
