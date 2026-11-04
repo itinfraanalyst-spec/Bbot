@@ -18,7 +18,8 @@ export function useChat(
   initialConversationId: string | null | undefined, 
   chatEndpoint = '/api/chat', 
   storageKey = 'trpwbot.currentConversationId',
-  onConversationNotFound?: () => void
+  onConversationNotFound?: () => void,
+  onConversationCreated?: (newId: string) => void
 ) {
   let queryClient: ReturnType<typeof useQueryClient> | null = null;
   try {
@@ -32,10 +33,15 @@ export function useChat(
   const lastSendTimestampRef = useRef(0);
   const failedConvIdsRef = useRef<Set<string>>(new Set());
   const onNotFoundRef = useRef(onConversationNotFound);
+  const onCreatedRef = useRef(onConversationCreated);
 
   useEffect(() => {
     onNotFoundRef.current = onConversationNotFound;
   }, [onConversationNotFound]);
+
+  useEffect(() => {
+    onCreatedRef.current = onConversationCreated;
+  }, [onConversationCreated]);
 
   const resolveConversationId = useCallback((providedId: string | null | undefined) => {
     if (providedId !== undefined) {
@@ -231,6 +237,7 @@ export function useChat(
               if (data.conversation_id) {
                 setCurrentConversationId(data.conversation_id);
                 requestConversationId = data.conversation_id;
+                onCreatedRef.current?.(data.conversation_id);
               }
               if (data.chunk) {
                 streamingTextRef.current += data.chunk;

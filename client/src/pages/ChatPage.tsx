@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ChatArea } from '../components/chat/ChatArea';
 import { ChatInput } from '../components/chat/ChatInput';
@@ -35,11 +35,20 @@ export function ChatPage() {
     } catch {}
   }, [conversationStorageKey]);
 
+  const handleConversationCreated = useCallback((newId: string) => {
+    setSelectedConvId(newId);
+    setExplicitNewChat(false);
+    try {
+      localStorage.setItem(conversationStorageKey, newId);
+    } catch {}
+  }, [conversationStorageKey]);
+
   const { messages, setMessages, isGenerating, sendMessage, stopGeneration, regenerateMessage, currentConversationId, startNewChat, deleteMessage } = useChat(
     selectedConvId, 
     '/api/chat', 
     conversationStorageKey,
-    handleConversationNotFound
+    handleConversationNotFound,
+    handleConversationCreated
   );
   const activeConversation = (conversations || []).find(c => c.id === currentConversationId);
   const currentProjectId = activeConversation?.project_id || activeProjectId;
@@ -50,15 +59,18 @@ export function ChatPage() {
 
   const { theme, toggleTheme } = useTheme();
 
+  const hasInitializedRef = useRef(false);
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || hasInitializedRef.current) return;
     const storedId = localStorage.getItem(conversationStorageKey);
     if (storedId) {
-      setSelectedConvId((prev) => (prev !== storedId ? storedId : prev));
+      setSelectedConvId(storedId);
+      hasInitializedRef.current = true;
     } else if (!explicitNewChat && conversations.length > 0) {
-      setSelectedConvId((prev) => (!prev && conversations[0]?.id ? conversations[0].id : prev));
+      setSelectedConvId(conversations[0]?.id || null);
+      hasInitializedRef.current = true;
     }
-  }, [conversationStorageKey, userId, conversations.length, explicitNewChat]);
+  }, [conversationStorageKey, userId, conversations, explicitNewChat]);
 
   useEffect(() => {
     if (!isHelpOpen) return;
