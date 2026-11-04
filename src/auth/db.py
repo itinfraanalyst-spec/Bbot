@@ -4,17 +4,14 @@ import datetime
 import hashlib
 import secrets
 from src.config import settings
+from src.database.adapter import connect_db, is_postgres
 
 def get_db_connection():
-    conn = sqlite3.connect(settings.DATABASE_URL, timeout=30.0, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON;")
-    conn.execute("PRAGMA journal_mode = WAL;")
-    conn.execute("PRAGMA busy_timeout = 15000;")
-    conn.execute("PRAGMA synchronous = NORMAL;")
-    return conn
+    return connect_db(settings.DATABASE_URL)
 
 def init_users_table():
+    if is_postgres(settings.DATABASE_URL):
+        return
     with get_db_connection() as conn:
         conn.execute('''
             CREATE TABLE IF NOT EXISTS users (

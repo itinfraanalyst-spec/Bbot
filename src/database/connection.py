@@ -2,10 +2,26 @@ import sqlite3
 import os
 from contextlib import contextmanager
 from src.config import settings
+from src.database.adapter import connect_db, is_postgres
 
 def init_db():
+    if is_postgres(settings.DATABASE_URL):
+        schema_file = os.path.join(str(settings.PROJECT_ROOT), "supabase_schema.sql")
+        if os.path.exists(schema_file):
+            with open(schema_file, "r", encoding="utf-8") as sf:
+                schema_sql = sf.read()
+            with get_connection() as conn:
+                for stmt in schema_sql.split(";"):
+                    clean_stmt = stmt.strip()
+                    if clean_stmt:
+                        conn.execute(clean_stmt)
+                conn.commit()
+            print("[DB] Initialized Supabase PostgreSQL tables & indexes successfully.")
+            return
+
     db_path = settings.DATABASE_URL
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    if os.path.dirname(db_path):
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
     
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -353,16 +369,8 @@ def init_db():
 
 @contextmanager
 def get_connection():
-    # Detect if we need to make directories
-    db_path = settings.DATABASE_URL
-    conn = sqlite3.connect(db_path, timeout=30.0, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
+    conn = connect_db(settings.DATABASE_URL)
     try:
-        # Enforce foreign keys, WAL mode, and busy timeout for high concurrency
-        conn.execute("PRAGMA foreign_keys = ON;")
-        conn.execute("PRAGMA journal_mode = WAL;")
-        conn.execute("PRAGMA busy_timeout = 15000;")
-        conn.execute("PRAGMA synchronous = NORMAL;")
         yield conn
     finally:
         conn.close()

@@ -1,6 +1,7 @@
 import re
 import hashlib
 import sqlite3
+from src.database.adapter import connect_db
 import logging
 from typing import Optional, Tuple, Dict
 from src.config import settings
@@ -64,7 +65,7 @@ def _resolve_canonical_key(raw_query: str) -> str:
 
 def _ensure_cache_table():
     try:
-        conn = sqlite3.connect(settings.DATABASE_URL)
+        conn = connect_db(settings.DATABASE_URL)
         cursor = conn.cursor()
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS semantic_cache (
@@ -106,7 +107,7 @@ def get_cached_response(query: str, context_str: str) -> Optional[str]:
             return _MEM_CACHE[cache_tuple]
 
         # 2. SQLite lookup
-        conn = sqlite3.connect(settings.DATABASE_URL)
+        conn = connect_db(settings.DATABASE_URL)
         cursor = conn.cursor()
         cursor.execute(
             "SELECT response FROM semantic_cache WHERE query_normalized = ? AND context_hash = ? ORDER BY id DESC LIMIT 1",
@@ -147,7 +148,7 @@ def set_cached_response(query: str, context_str: str, response: str, conversatio
         _MEM_CACHE[cache_tuple] = response
 
         # 2. Store in persistent SQLite table
-        conn = sqlite3.connect(settings.DATABASE_URL)
+        conn = connect_db(settings.DATABASE_URL)
         cursor = conn.cursor()
         cursor.execute(
             "INSERT INTO semantic_cache (conversation_id, query_normalized, context_hash, response) VALUES (?, ?, ?, ?)",

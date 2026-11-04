@@ -17,3 +17,5 @@ huggingface-hub==1.16.1
 pydantic-settings==2.1.0
 python-docx==1.1.2
 openpyxl==3.1.5
+
+psycopg2-binary>=2.9.9
