@@ -168,3 +168,4 @@ def connect_db(url: str):
         except Exception:
             pass
         return conn
+

@@ -173,3 +173,4 @@ CREATE TABLE IF NOT EXISTS semantic_cache (
     access_count INTEGER DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS idx_semantic_cache_accessed ON semantic_cache(accessed_at);
+

@@ -111,7 +111,7 @@ def health_check():
     
     return {
         "status": "ok", 
-        "service": "chat-bot-2 backend with SQLite",
+        "service": f"chat-bot-2 backend with {'Supabase PostgreSQL' if settings.DATABASE_URL.startswith(('postgres://', 'postgresql://')) else 'SQLite'}",
         "persistence": db_status,
         "model_loaded": model_loaded,
         "rag_enabled": settings.RAG_ENABLED

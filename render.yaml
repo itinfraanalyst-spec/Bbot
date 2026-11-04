@@ -19,6 +19,8 @@ services:
         value: "true"
       - key: ALLOWED_ORIGINS
         value: "*"
+      - key: DATABASE_URL
+        value: "postgresql://postgres.pabciyqqfqyophtbofks:psKffa4V3jOlKbAR@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres"
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_MODEL
