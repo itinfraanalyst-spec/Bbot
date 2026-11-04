@@ -181,10 +181,17 @@ def get_groq_http_client() -> httpx.Client:
     if _groq_http_client is None or _groq_http_client.is_closed:
         with _groq_client_lock:
             if _groq_http_client is None or _groq_http_client.is_closed:
+                _has_h2 = False
+                try:
+                    import h2  # noqa: F401
+                    _has_h2 = True
+                except ImportError:
+                    pass
+
                 _groq_http_client = httpx.Client(
                     timeout=httpx.Timeout(45.0, connect=10.0),
                     limits=httpx.Limits(max_keepalive_connections=10, max_connections=20, keepalive_expiry=60.0),
-                    http2=True,
+                    http2=_has_h2,
                 )
     return _groq_http_client
 
