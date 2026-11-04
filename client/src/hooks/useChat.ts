@@ -46,9 +46,12 @@ export function useChat(
 
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(() => resolveConversationId(initialConversationId));
   
-  // Ref to hold the streamed text before flushing to state
-  const streamingTextRef = useRef('');
-  const flushFrameRef = useRef<number | null>(null);
+  // Typewriter streaming queue refs
+  const incomingFullTextRef = useRef('');
+  const displayedTextRef = useRef('');
+  const typewriterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const streamDoneRef = useRef(false);
+  const finalStatusRef = useRef<Message['status']>('complete');
   const activeAssistantIdRef = useRef<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -127,18 +130,80 @@ export function useChat(
     }
   }, [currentConversationId, storageKey]);
 
-  const scheduleFlush = useCallback(() => {
-    if (flushFrameRef.current !== null) return; 
-    flushFrameRef.current = requestAnimationFrame(() => {
-      setMessages((prev) => 
-        prev.map(msg => 
-          msg.id === activeAssistantIdRef.current 
-            ? { ...msg, content: streamingTextRef.current } 
+  const stepTypewriter = useCallback(() => {
+    const full = incomingFullTextRef.current;
+    const curr = displayedTextRef.current;
+
+    if (curr.length >= full.length) {
+      if (streamDoneRef.current) {
+        if (typewriterTimerRef.current !== null) {
+          clearTimeout(typewriterTimerRef.current);
+          typewriterTimerRef.current = null;
+        }
+        setIsGenerating(false);
+        const currentId = activeAssistantIdRef.current;
+        if (currentId) {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === currentId
+                ? { ...msg, content: full, status: finalStatusRef.current }
+                : msg
+            )
+          );
+        }
+        return;
+      }
+      typewriterTimerRef.current = null;
+      return;
+    }
+
+    const remaining = full.length - curr.length;
+    let stepLen = 1;
+
+    if (remaining > 400) {
+      stepLen = Math.min(remaining, 32);
+    } else if (remaining > 150) {
+      stepLen = 16;
+    } else if (remaining > 50) {
+      stepLen = 8;
+    } else {
+      // Natural word-by-word reading pace: find next word or punctuation boundary
+      const lookahead = full.slice(curr.length, curr.length + 18);
+      const boundaryMatch = lookahead.search(/[\s\n.,!?;:()\-]/);
+      stepLen = boundaryMatch !== -1 ? boundaryMatch + 1 : Math.min(remaining, 4);
+    }
+
+    const updatedText = full.slice(0, curr.length + stepLen);
+    displayedTextRef.current = updatedText;
+
+    const currentId = activeAssistantIdRef.current;
+    if (currentId) {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === currentId
+            ? { ...msg, content: updatedText }
             : msg
         )
       );
-      flushFrameRef.current = null;
-    });
+    }
+
+    const delay = remaining > 250 ? 12 : remaining > 80 ? 16 : 22;
+    typewriterTimerRef.current = setTimeout(stepTypewriter, delay);
+  }, []);
+
+  const pushStreamChunk = useCallback((chunk: string) => {
+    incomingFullTextRef.current += chunk;
+    if (typewriterTimerRef.current === null) {
+      stepTypewriter();
+    }
+  }, [stepTypewriter]);
+
+  useEffect(() => {
+    return () => {
+      if (typewriterTimerRef.current !== null) {
+        clearTimeout(typewriterTimerRef.current);
+      }
+    };
   }, []);
 
   const sendMessage = useCallback(async (text: string, options?: { language?: string; originalText?: string; projectId?: string }) => {
@@ -160,7 +225,14 @@ export function useChat(
     
     setMessages(prev => [...prev, userMsg, assistantMsg]);
     setIsGenerating(true);
-    streamingTextRef.current = '';
+    incomingFullTextRef.current = '';
+    displayedTextRef.current = '';
+    streamDoneRef.current = false;
+    finalStatusRef.current = 'complete';
+    if (typewriterTimerRef.current !== null) {
+      clearTimeout(typewriterTimerRef.current);
+      typewriterTimerRef.current = null;
+    }
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -233,8 +305,7 @@ export function useChat(
                 requestConversationId = data.conversation_id;
               }
               if (data.chunk) {
-                streamingTextRef.current += data.chunk;
-                scheduleFlush();
+                pushStreamChunk(data.chunk);
               }
               if (data.message_id) {
                 const temporaryId = activeAssistantIdRef.current;
@@ -265,34 +336,35 @@ export function useChat(
              if (dataStr.trim() !== '[DONE]') {
                try {
                  const data = JSON.parse(dataStr);
-                 if (data.chunk) streamingTextRef.current += data.chunk;
+                 if (data.chunk) pushStreamChunk(data.chunk);
                } catch {}
              }
            }
          }
       }
       
-      const currentId = activeAssistantIdRef.current;
-      setMessages((prev) => 
-        prev.map(msg => 
-          msg.id === currentId 
-            ? { ...msg, content: streamingTextRef.current, status: streamStatus }
-            : msg
-        )
-      );
+      finalStatusRef.current = streamStatus;
+      streamDoneRef.current = true;
+      if (typewriterTimerRef.current === null) {
+        stepTypewriter();
+      }
 
       // Invalidate conversation list so newly created conversations and updated timestamps reflect in the sidebar
       queryClient?.invalidateQueries({ queryKey: ['conversations'] });
 
     } catch (err: any) {
       clearTimeout(timeoutId);
-      const hasContent = streamingTextRef.current.trim().length > 0;
+      if (typewriterTimerRef.current !== null) {
+        clearTimeout(typewriterTimerRef.current);
+        typewriterTimerRef.current = null;
+      }
+      const hasContent = incomingFullTextRef.current.trim().length > 0;
       
       const status = hasContent ? 'aborted' : 'error';
       
       let content = '';
       if (hasContent) {
-        content = streamingTextRef.current;
+        content = incomingFullTextRef.current;
       } else {
         if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
           content = `Network connection lost. The server might still be processing. Please wait a moment and refresh.`;
@@ -311,19 +383,37 @@ export function useChat(
       );
     } finally {
       isSendingRef.current = false;
-      setIsGenerating(false);
-      activeAssistantIdRef.current = null;
-      if (flushFrameRef.current !== null) {
-        cancelAnimationFrame(flushFrameRef.current);
-        flushFrameRef.current = null;
+      if (!incomingFullTextRef.current.trim()) {
+        if (typewriterTimerRef.current !== null) {
+          clearTimeout(typewriterTimerRef.current);
+          typewriterTimerRef.current = null;
+        }
+        setIsGenerating(false);
+        activeAssistantIdRef.current = null;
       }
     }
-  }, [chatEndpoint, isGenerating, scheduleFlush, currentConversationId, storageKey]);
+  }, [chatEndpoint, isGenerating, pushStreamChunk, stepTypewriter, currentConversationId, storageKey]);
 
   const stopGeneration = useCallback(() => {
+    if (typewriterTimerRef.current !== null) {
+      clearTimeout(typewriterTimerRef.current);
+      typewriterTimerRef.current = null;
+    }
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
+    }
+    setIsGenerating(false);
+    isSendingRef.current = false;
+    const currentId = activeAssistantIdRef.current;
+    if (currentId) {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === currentId
+            ? { ...msg, content: displayedTextRef.current || incomingFullTextRef.current, status: 'aborted' }
+            : msg
+        )
+      );
     }
   }, []);
 
@@ -349,7 +439,14 @@ export function useChat(
     
     setMessages([...truncatedHistory, userMsg, assistantMsg]);
     setIsGenerating(true);
-    streamingTextRef.current = '';
+    incomingFullTextRef.current = '';
+    displayedTextRef.current = '';
+    streamDoneRef.current = false;
+    finalStatusRef.current = 'complete';
+    if (typewriterTimerRef.current !== null) {
+      clearTimeout(typewriterTimerRef.current);
+      typewriterTimerRef.current = null;
+    }
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -410,8 +507,7 @@ export function useChat(
                 // Not strictly needed here since we require currentConversationId to edit, but safe
               }
               if (data.chunk) {
-                streamingTextRef.current += data.chunk;
-                scheduleFlush();
+                pushStreamChunk(data.chunk);
               }
               if (data.error) {
                 throw new Error(data.error);
@@ -434,31 +530,32 @@ export function useChat(
              if (dataStr.trim() !== '[DONE]') {
                try {
                  const data = JSON.parse(dataStr);
-                 if (data.chunk) streamingTextRef.current += data.chunk;
+                 if (data.chunk) pushStreamChunk(data.chunk);
                } catch {}
              }
            }
          }
       }
       
-      const currentId = activeAssistantIdRef.current;
-      setMessages((prev) => 
-        prev.map(msg => 
-          msg.id === currentId 
-            ? { ...msg, content: streamingTextRef.current, status: streamStatus }
-            : msg
-        )
-      );
+      finalStatusRef.current = streamStatus;
+      streamDoneRef.current = true;
+      if (typewriterTimerRef.current === null) {
+        stepTypewriter();
+      }
 
     } catch (err: any) {
       clearTimeout(timeoutId);
-      const hasContent = streamingTextRef.current.trim().length > 0;
+      if (typewriterTimerRef.current !== null) {
+        clearTimeout(typewriterTimerRef.current);
+        typewriterTimerRef.current = null;
+      }
+      const hasContent = incomingFullTextRef.current.trim().length > 0;
       
       const status = hasContent ? 'aborted' : 'error';
       
       let content = '';
       if (hasContent) {
-        content = streamingTextRef.current;
+        content = incomingFullTextRef.current;
       } else {
         if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
           content = `Network connection lost. The server might still be processing. Please wait a moment and refresh.`;
@@ -477,14 +574,16 @@ export function useChat(
       );
     } finally {
       isSendingRef.current = false;
-      setIsGenerating(false);
-      activeAssistantIdRef.current = null;
-      if (flushFrameRef.current !== null) {
-        cancelAnimationFrame(flushFrameRef.current);
-        flushFrameRef.current = null;
+      if (!incomingFullTextRef.current.trim()) {
+        if (typewriterTimerRef.current !== null) {
+          clearTimeout(typewriterTimerRef.current);
+          typewriterTimerRef.current = null;
+        }
+        setIsGenerating(false);
+        activeAssistantIdRef.current = null;
       }
     }
-  }, [chatEndpoint, messages, isGenerating, scheduleFlush, currentConversationId]);
+  }, [chatEndpoint, messages, isGenerating, pushStreamChunk, stepTypewriter, currentConversationId]);
 
   return { messages, setMessages, isGenerating, sendMessage, stopGeneration, regenerateMessage, currentConversationId };
 }
