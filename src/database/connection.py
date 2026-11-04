@@ -6,18 +6,15 @@ from src.database.adapter import connect_db, is_postgres
 
 def init_db():
     if is_postgres(settings.DATABASE_URL):
-        schema_file = os.path.join(str(settings.PROJECT_ROOT), "supabase_schema.sql")
-        if os.path.exists(schema_file):
-            with open(schema_file, "r", encoding="utf-8") as sf:
-                schema_sql = sf.read()
-            with get_connection() as conn:
-                for stmt in schema_sql.split(";"):
-                    clean_stmt = stmt.strip()
-                    if clean_stmt:
-                        conn.execute(clean_stmt)
-                conn.commit()
-            print("[DB] Initialized Supabase PostgreSQL tables & indexes successfully.")
-            return
+        from src.database.schema import SUPABASE_SCHEMA_SQL
+        with get_connection() as conn:
+            for stmt in SUPABASE_SCHEMA_SQL.split(";"):
+                clean_stmt = stmt.strip()
+                if clean_stmt:
+                    conn.execute(clean_stmt)
+            conn.commit()
+        print("[DB] Initialized Supabase PostgreSQL tables & indexes successfully.")
+        return
 
     db_path = settings.DATABASE_URL
     if os.path.dirname(db_path):
