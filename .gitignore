@@ -50,3 +50,5 @@ venv_test/
 venv_audit/
 cloudflared.exe
 *.exe
+
+node_modules/

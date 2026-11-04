@@ -619,10 +619,15 @@ export function MessageBubble({ message, botName = 'bbot', onRetry, isGenerating
                 <button
                   key={prompt}
                   type="button"
-                  onClick={() => onSuggestedPrompt(prompt)}
+                  disabled={isGenerating}
+                  onClick={() => {
+                    if (isGenerating) return;
+                    onSuggestedPrompt(prompt);
+                  }}
                   className={clsx(
                     'group inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-left text-xs font-medium transition-all duration-150 backdrop-blur-xs shadow-xs',
                     'hover:scale-[1.02] active:scale-[0.98]',
+                    isGenerating && 'opacity-50 pointer-events-none cursor-not-allowed',
                     theme.bg,
                     theme.border,
                     theme.text,

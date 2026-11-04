@@ -328,10 +328,14 @@ export function ChatInput({ onSendMessage, disabled, onUploadFile, isUploading, 
           <span>{currentLanguageOption.flag}</span>
           <span className="font-semibold">{currentLanguageOption.nativeName}</span>
         </span>
-        {isNewChat && !disabled && !isUploading && (
+        {isNewChat && !disabled && !isUploading && !isGenerating && (
           <button
             type="button"
-            onClick={() => onSendMessage(t('sayHelloPrompt', { botName }))}
+            disabled={disabled || isUploading || isGenerating}
+            onClick={() => {
+              if (disabled || isUploading || isGenerating) return;
+              onSendMessage(t('sayHelloPrompt', { botName }));
+            }}
             className="shrink-0 mb-1 sm:mb-1.5 mr-1 sm:mr-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 hover:border-amber-500 px-2 sm:px-3.5 py-1 sm:py-1.5 rounded-full text-[0.7rem] sm:text-xs font-bold transition-all flex items-center gap-1.5 shadow-[0_2px_8px_rgba(245,158,11,0.15)] hover:scale-[1.02] active:scale-[0.98] dark:bg-gradient-to-r dark:from-amber-500/20 dark:via-orange-500/20 dark:to-amber-500/20 dark:border-amber-500/50 dark:text-amber-300 dark:hover:from-amber-500 dark:hover:to-orange-500 dark:hover:text-white dark:shadow-[0_0_12px_rgba(245,158,11,0.25)]"
           >
             <Sparkles size={13} className="text-amber-600 dark:text-amber-300" />

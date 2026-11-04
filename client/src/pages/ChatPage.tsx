@@ -72,6 +72,7 @@ export function ChatPage() {
   }, [isHelpOpen]);
 
   const handleSendMessage = (text: string) => {
+    if (isGenerating) return;
     setExplicitNewChat(false);
     sendMessage(text, { projectId: activeProjectId || undefined });
   };

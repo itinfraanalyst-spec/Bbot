@@ -301,13 +301,15 @@ export function ChatArea({ messages, isGenerating, botName = 'bbot', onRetry, on
                         return (
                           <button
                             key={idx}
+                            disabled={isGenerating}
                             onClick={() => {
+                              if (isGenerating) return;
                               const newHidden = new Set(hiddenStarters);
                               newHidden.add(item.full);
                               setHiddenStarters(newHidden);
                               onSuggestedPrompt?.(item.text);
                             }}
-                            className={`group inline-flex items-center gap-2.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-2 text-sm text-[var(--text-primary)] transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] text-left shadow-sm ${theme.border} ${theme.bg} ${theme.text} ${theme.glow}`}
+                            className={`group inline-flex items-center gap-2.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-2 text-sm text-[var(--text-primary)] transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] text-left shadow-sm ${theme.border} ${theme.bg} ${theme.text} ${theme.glow} ${isGenerating ? 'opacity-50 pointer-events-none cursor-not-allowed' : ''}`}
                           >
                             <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${theme.dot} transition-transform group-hover:scale-125`} />
                             <span>{item.text}</span>
@@ -339,13 +341,8 @@ export function ChatArea({ messages, isGenerating, botName = 'bbot', onRetry, on
           let promptsToShow: string[] | undefined = undefined;
           
           if (isLatestAndReady) {
-            // If there are still starter questions left, show them. 
-            // Otherwise fallback to dynamically generated suggestions.
-            if (activeStarters.length > 0) {
-              promptsToShow = activeStarters;
-            } else {
-              promptsToShow = getSuggestedPrompts(messages, index, documentsCount, language);
-            }
+            // Once messages exist, show contextual follow-up suggestions rather than repeating the intro greeting
+            promptsToShow = getSuggestedPrompts(messages, index, documentsCount, language);
           }
 
           return (
@@ -359,6 +356,7 @@ export function ChatArea({ messages, isGenerating, botName = 'bbot', onRetry, on
                   onEdit={onEdit}
                   suggestedPrompts={promptsToShow}
                   onSuggestedPrompt={(q) => {
+                    if (isGenerating) return;
                     if (activeStarters.includes(q)) {
                       setHiddenStarters(prev => new Set(prev).add(q));
                     }

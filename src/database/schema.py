@@ -172,3 +172,4 @@ CREATE TABLE IF NOT EXISTS semantic_cache (
 );
 CREATE INDEX IF NOT EXISTS idx_cache_query ON semantic_cache(query_normalized, context_hash);
 """
+

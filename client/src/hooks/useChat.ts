@@ -26,6 +26,8 @@ export function useChat(
   }
   const [messages, setMessages] = useState<Message[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const isSendingRef = useRef(false);
+  const lastSendTimestampRef = useRef(0);
   const failedConvIdsRef = useRef<Set<string>>(new Set());
   const onNotFoundRef = useRef(onConversationNotFound);
 
@@ -63,8 +65,13 @@ export function useChat(
         return;
       }
 
+      // Do not refetch if we are already viewing/streaming this exact conversation
+      if (nextConversationId === currentConversationId) {
+        return;
+      }
+
       if (!cancelled) {
-        setCurrentConversationId((prev) => (prev !== nextConversationId ? nextConversationId : prev));
+        setCurrentConversationId(nextConversationId);
       }
       
       // Fetch history
@@ -126,7 +133,10 @@ export function useChat(
   }, []);
 
   const sendMessage = useCallback(async (text: string, options?: { language?: string; originalText?: string; projectId?: string }) => {
-    if (!text.trim() || isGenerating) return;
+    const now = Date.now();
+    if (!text.trim() || isGenerating || isSendingRef.current || (now - lastSendTimestampRef.current < 500)) return;
+    isSendingRef.current = true;
+    lastSendTimestampRef.current = now;
 
     const userMsg: Message = { 
       id: createId(), 
@@ -291,6 +301,7 @@ export function useChat(
         )
       );
     } finally {
+      isSendingRef.current = false;
       setIsGenerating(false);
       activeAssistantIdRef.current = null;
       if (flushFrameRef.current !== null) {
@@ -456,6 +467,7 @@ export function useChat(
         )
       );
     } finally {
+      isSendingRef.current = false;
       setIsGenerating(false);
       activeAssistantIdRef.current = null;
       if (flushFrameRef.current !== null) {
