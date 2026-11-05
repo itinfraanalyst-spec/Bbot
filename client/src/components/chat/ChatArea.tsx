@@ -1,9 +1,8 @@
-import { lazy, Suspense, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ArrowDown } from 'lucide-react';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { useLanguage, UI_TRANSLATIONS } from '../../contexts/LanguageContext';
-
-const MessageBubble = lazy(() => import('./MessageBubble').then(module => ({ default: module.MessageBubble })));
+import { MessageBubble } from './MessageBubble';
 
 interface Message {
   id: string;
@@ -334,7 +333,7 @@ export function ChatArea({ messages, isGenerating, botName = 'bbot', onRetry, on
         className="w-full h-full"
         data={messages}
         ref={virtuosoRef}
-        followOutput={(isAtBottom) => isAtBottom ? 'smooth' : false}
+        followOutput={(isAtBottom) => isAtBottom ? 'auto' : false}
         atBottomStateChange={setIsAtBottom}
         initialTopMostItemIndex={messages.length > 0 ? messages.length - 1 : 0}
         itemContent={(index, msg) => {
@@ -348,8 +347,7 @@ export function ChatArea({ messages, isGenerating, botName = 'bbot', onRetry, on
 
           return (
             <div className="flex flex-col items-center w-full px-4 sm:px-6 lg:px-8 pb-8 overflow-x-hidden">
-              <Suspense fallback={<div className="w-full text-[var(--text-primary)] whitespace-pre-wrap">{msg.content}</div>}>
-                <MessageBubble
+              <MessageBubble
                   message={msg}
                   botName={botName}
                   onRetry={onRetry && msg.status === 'error' ? () => onRetry(msg) : undefined}
@@ -365,7 +363,6 @@ export function ChatArea({ messages, isGenerating, botName = 'bbot', onRetry, on
                     onSuggestedPrompt?.(q);
                   }}
                 />
-              </Suspense>
             </div>
           );
         }}

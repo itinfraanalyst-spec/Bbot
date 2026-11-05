@@ -1,6 +1,17 @@
 import uuid
+import time
 from typing import List, Dict, Optional
 from src.database.connection import get_connection
+
+_docs_cache: Dict[str, tuple] = {}
+_DOCS_CACHE_TTL = 15.0
+
+def invalidate_conversation_docs_cache(conv_id: Optional[str] = None):
+    if conv_id:
+        _docs_cache.pop(conv_id, None)
+    else:
+        _docs_cache.clear()
+
 
 class DocumentRepository:
     
@@ -109,6 +120,10 @@ class DocumentRepository:
             return cursor.rowcount > 0
 
     def get_conversation_documents(self, conv_id: str) -> List[Dict]:
+        now = time.time()
+        cached = _docs_cache.get(conv_id)
+        if cached and (now - cached[0] < _DOCS_CACHE_TTL):
+            return cached[1]
         with get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -117,4 +132,6 @@ class DocumentRepository:
                 WHERE cd.conversation_id = ?
                 ORDER BY cd.created_at ASC
             """, (conv_id,))
-            return [dict(row) for row in cursor.fetchall()]
+            res = [dict(row) for row in cursor.fetchall()]
+            _docs_cache[conv_id] = (now, res)
+            return res

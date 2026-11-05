@@ -232,14 +232,15 @@ function MessageBubbleComponent({ message, botName = 'bbot', onRetry, onDismiss,
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
   const isLineChartRequested = useMemo(() => {
+    if (isUser || status === 'sending') return false;
     const text = message.content.toLowerCase();
     return text.includes('line chart') || text.includes('line graph') || text.includes('trend');
-  }, [message.content]);
+  }, [message.content, isUser, status]);
 
   const parsedCharts = useMemo(() => {
-    if (isUser || isError) return null;
+    if (isUser || isError || status === 'sending') return null;
     return parseMarkdownTable(message.content);
-  }, [message.content, isUser, isError]);
+  }, [message.content, isUser, isError, status]);
 
   const toggleSpeech = () => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
