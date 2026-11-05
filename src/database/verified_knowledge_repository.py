@@ -1,8 +1,32 @@
 import re
 import uuid
+import time
 from typing import Dict, List, Optional
 
 from src.database.connection import get_connection
+
+_vk_cache: Optional[List[Dict]] = None
+_vk_cache_timestamp: float = 0.0
+_VK_CACHE_TTL: float = 30.0
+
+
+def _get_active_verified_knowledge() -> List[Dict]:
+    global _vk_cache, _vk_cache_timestamp
+    now = time.time()
+    if _vk_cache is not None and (now - _vk_cache_timestamp < _VK_CACHE_TTL):
+        return _vk_cache
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM verified_knowledge WHERE is_active = TRUE ORDER BY created_at DESC"
+        ).fetchall()
+        _vk_cache = [dict(r) for r in rows]
+        _vk_cache_timestamp = now
+    return _vk_cache
+
+
+def invalidate_verified_knowledge_cache() -> None:
+    global _vk_cache
+    _vk_cache = None
 
 
 class VerifiedKnowledgeRepository:
@@ -17,6 +41,7 @@ class VerifiedKnowledgeRepository:
 
     def save(self, user_id: str, source_feedback_message_id: str, question: str, correction: str, created_by: str) -> Dict:
         knowledge_id = str(uuid.uuid4())
+        invalidate_verified_knowledge_cache()
         with get_connection() as conn:
             conn.execute("""
                 INSERT INTO verified_knowledge
@@ -41,20 +66,15 @@ class VerifiedKnowledgeRepository:
         query_terms = self._terms(query)
         if not query_terms:
             return []
-        with get_connection() as conn:
-            # We remove the user_id strict filter to make verified learning GLOBAL for the entire organization
-            rows = conn.execute(
-                "SELECT * FROM verified_knowledge WHERE is_active = TRUE ORDER BY created_at DESC"
-            ).fetchall()
+        rows = _get_active_verified_knowledge()
         ranked = []
         global_rules = []
-        for row in rows:
-            item = dict(row)
-            if item['question'] == 'GLOBAL_AI_RULE':
+        for item in rows:
+            if item.get('question') == 'GLOBAL_AI_RULE':
                 global_rules.append(item)
             else:
-                overlap = len(query_terms & self._terms(f"{item['question']} {item['correction']}"))
+                overlap = len(query_terms & self._terms(f"{item.get('question', '')} {item.get('correction', '')}"))
                 if overlap:
                     ranked.append((overlap, item))
-        ranked.sort(key=lambda item: (-item[0], item[1]["created_at"]))
+        ranked.sort(key=lambda item: (-item[0], item[1].get("created_at", "")))
         return global_rules + [item for _, item in ranked[:limit]]

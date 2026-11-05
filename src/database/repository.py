@@ -296,10 +296,10 @@ class ConversationRepository:
                         stopwords = {"the", "a", "an", "and", "or", "but", "is", "are", "was", "were", "to", "in", "for", "of", "on", "with", "as", "by", "at", "it", "this", "that", "i", "you", "we", "they", "he", "she", "what", "how", "when", "where", "why", "who", "can", "could", "would", "should", "do", "does", "did", "have", "has", "had", "be", "been", "my", "your", "their", "our", "not", "no", "yes", "if", "then", "please", "about", "from", "just", "like", "know", "there"}
                         terms = {w for w in words if w not in stopwords}
                         
-                        for term in terms:
-                            cursor.execute(
+                        if terms:
+                            cursor.executemany(
                                 "INSERT INTO message_terms (message_id, user_id, term) VALUES (?, ?, ?)",
-                                (msg_id, user_id, term)
+                                [(msg_id, user_id, term) for term in terms]
                             )
             
             # Update conversation's updated_at

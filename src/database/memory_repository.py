@@ -67,7 +67,8 @@ class MemoryRepository:
 
         with get_connection() as conn:
             rows = conn.execute(
-                "SELECT * FROM user_memories WHERE is_active = TRUE ORDER BY created_at DESC"
+                "SELECT * FROM user_memories WHERE user_id = ? AND is_active = TRUE ORDER BY created_at DESC",
+                (user_id,)
             ).fetchall()
 
             ranked = []

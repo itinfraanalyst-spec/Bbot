@@ -142,10 +142,14 @@ def get_pg_pool(clean_url: str):
             if _pg_pool is None:
                 import psycopg2.pool
                 _pg_pool = psycopg2.pool.ThreadedConnectionPool(
-                    minconn=1,
+                    minconn=3,
                     maxconn=20,
                     dsn=clean_url,
                     connect_timeout=15,
+                    keepalives=1,
+                    keepalives_idle=30,
+                    keepalives_interval=10,
+                    keepalives_count=5,
                 )
     return _pg_pool
 
@@ -153,6 +157,7 @@ class PostgresConnectionWrapper:
     def __init__(self, conn, pool=None):
         self._conn = conn
         self._pool = pool
+        self._closed = False
         self.row_factory = None
 
     def cursor(self):
@@ -182,6 +187,9 @@ class PostgresConnectionWrapper:
             pass
 
     def close(self):
+        if self._closed:
+            return
+        self._closed = True
         if self._pool is not None:
             try:
                 self._pool.putconn(self._conn)
@@ -200,11 +208,13 @@ class PostgresConnectionWrapper:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is not None:
-            self.rollback()
-        else:
-            self.commit()
-        self.close()
+        try:
+            if exc_type is not None:
+                self.rollback()
+            else:
+                self.commit()
+        finally:
+            self.close()
 
 def connect_db(url: str):
     """Universal connection factory that seamlessly connects to PostgreSQL or SQLite."""
@@ -226,7 +236,14 @@ def connect_db(url: str):
             raw_conn.autocommit = False
             return PostgresConnectionWrapper(raw_conn, pool=pool)
         except Exception:
-            raw_conn = psycopg2.connect(clean_url, connect_timeout=15)
+            raw_conn = psycopg2.connect(
+                clean_url,
+                connect_timeout=15,
+                keepalives=1,
+                keepalives_idle=30,
+                keepalives_interval=10,
+                keepalives_count=5,
+            )
             raw_conn.autocommit = False
             return PostgresConnectionWrapper(raw_conn, pool=None)
     else:
