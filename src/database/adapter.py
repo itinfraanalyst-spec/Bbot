@@ -74,6 +74,13 @@ class PostgresCursorWrapper:
             flags=re.IGNORECASE,
         )
         clean_sql = re.sub(r"\s+COLLATE\s+NOCASE\b", "", clean_sql, flags=re.IGNORECASE)
+
+        # Translate SQLite 'INSERT OR IGNORE INTO table ...' -> PostgreSQL 'INSERT INTO table ... ON CONFLICT DO NOTHING'
+        if re.search(r"\bINSERT\s+OR\s+IGNORE\s+INTO\b", clean_sql, re.IGNORECASE):
+            clean_sql = re.sub(r"\bINSERT\s+OR\s+IGNORE\s+INTO\b", "INSERT INTO", clean_sql, flags=re.IGNORECASE)
+            if "ON CONFLICT" not in clean_sql.upper():
+                clean_sql = clean_sql.rstrip("; \t\n\r") + " ON CONFLICT DO NOTHING"
+
         return clean_sql
 
     def execute(self, sql, params=None):

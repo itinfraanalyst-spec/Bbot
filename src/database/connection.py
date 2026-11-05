@@ -12,6 +12,18 @@ def init_db():
                 clean_stmt = stmt.strip()
                 if clean_stmt:
                     conn.execute(clean_stmt)
+            
+            # Safe schema migrations for existing PostgreSQL tables
+            alter_stmts = [
+                "ALTER TABLE documents ADD COLUMN IF NOT EXISTS summary TEXT",
+                "ALTER TABLE conversation_documents ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP",
+                "ALTER TABLE conversation_documents ADD COLUMN IF NOT EXISTS attached_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP",
+            ]
+            for alter in alter_stmts:
+                try:
+                    conn.execute(alter)
+                except Exception as e:
+                    print(f"[DB] Migration notice: {e}")
             conn.commit()
         print("[DB] Initialized Supabase PostgreSQL tables & indexes successfully.")
         return

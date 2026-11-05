@@ -272,7 +272,7 @@ def attach_document(bot_id: str, document_id: str, current_user: dict = Depends(
         document = conn.execute("SELECT id FROM documents WHERE id = ? AND user_id = ?", (document_id, current_user["id"])).fetchone()
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
-        conn.execute("INSERT OR IGNORE INTO custom_bot_documents (bot_id, document_id) VALUES (?, ?)", (bot_id, document_id))
+        conn.execute("INSERT INTO custom_bot_documents (bot_id, document_id) VALUES (?, ?) ON CONFLICT DO NOTHING", (bot_id, document_id))
         conn.commit()
     return _get_bot(bot_id)
 
@@ -309,7 +309,7 @@ def chat_with_bot(request: Request, bot_id: str, chat: BotChatRequest, current_u
 
     with get_connection() as conn:
         for document in bot["documents"]:
-            conn.execute("INSERT OR IGNORE INTO conversation_documents (conversation_id, document_id) VALUES (?, ?)", (conversation_id, document["id"]))
+            conn.execute("INSERT INTO conversation_documents (conversation_id, document_id) VALUES (?, ?) ON CONFLICT DO NOTHING", (conversation_id, document["id"]))
         conn.commit()
 
     from src.api.routes import get_chat_service

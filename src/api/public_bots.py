@@ -116,7 +116,7 @@ def chat_with_public_bot(
     # Attach documents if any
     with get_connection() as conn:
         for document in bot["documents"]:
-            conn.execute("INSERT OR IGNORE INTO conversation_documents (conversation_id, document_id) VALUES (?, ?)", (conversation_id, document["id"]))
+            conn.execute("INSERT INTO conversation_documents (conversation_id, document_id) VALUES (?, ?) ON CONFLICT DO NOTHING", (conversation_id, document["id"]))
         conn.commit()
 
     accent = bot.get("accent", "var(--accent)")

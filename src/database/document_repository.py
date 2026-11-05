@@ -96,7 +96,7 @@ class DocumentRepository:
     def associate_document_with_conversation(self, conv_id: str, doc_id: str):
         with get_connection() as conn:
             conn.execute(
-                "INSERT OR IGNORE INTO conversation_documents (conversation_id, document_id) VALUES (?, ?)",
+                "INSERT INTO conversation_documents (conversation_id, document_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
                 (conv_id, doc_id)
             )
             conn.commit()

@@ -146,6 +146,7 @@ CREATE TABLE IF NOT EXISTS documents (
     sha256 TEXT UNIQUE NOT NULL,
     size INTEGER NOT NULL,
     page_count INTEGER NOT NULL,
+    summary TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     status TEXT NOT NULL,
     progress REAL DEFAULT 0.0
@@ -153,15 +154,28 @@ CREATE TABLE IF NOT EXISTS documents (
 CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents(user_id);
 CREATE INDEX IF NOT EXISTS idx_documents_sha256 ON documents(sha256);
 
--- 12. Conversation Documents (Many-to-Many Attachments)
+-- 12. Document Chunks Table
+CREATE TABLE IF NOT EXISTS document_chunks (
+    id TEXT PRIMARY KEY,
+    document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    chunk_index INTEGER NOT NULL,
+    page_start INTEGER NOT NULL,
+    page_end INTEGER NOT NULL,
+    page_number INTEGER,
+    text TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_doc_chunks_doc_id ON document_chunks(document_id);
+
+-- 13. Conversation Documents (Many-to-Many Attachments)
 CREATE TABLE IF NOT EXISTS conversation_documents (
     conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
     document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     attached_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (conversation_id, document_id)
 );
 
--- 13. Semantic Cache
+-- 14. Semantic Cache
 CREATE TABLE IF NOT EXISTS semantic_cache (
     id SERIAL PRIMARY KEY,
     conversation_id TEXT,
@@ -171,5 +185,59 @@ CREATE TABLE IF NOT EXISTS semantic_cache (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_cache_query ON semantic_cache(query_normalized, context_hash);
-"""
 
+-- 15. Custom Bots Table
+CREATE TABLE IF NOT EXISTS custom_bots (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    personality TEXT NOT NULL,
+    accent TEXT NOT NULL DEFAULT 'var(--accent)',
+    starter_questions TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_custom_bots_user_id ON custom_bots(user_id);
+
+-- 16. Custom Bot Documents Table
+CREATE TABLE IF NOT EXISTS custom_bot_documents (
+    bot_id TEXT NOT NULL REFERENCES custom_bots(id) ON DELETE CASCADE,
+    document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (bot_id, document_id)
+);
+CREATE INDEX IF NOT EXISTS idx_custom_bot_documents_bot_id ON custom_bot_documents(bot_id);
+
+-- 17. Custom Bot Integrations
+CREATE TABLE IF NOT EXISTS custom_bot_integrations (
+    id TEXT PRIMARY KEY,
+    bot_id TEXT NOT NULL UNIQUE REFERENCES custom_bots(id) ON DELETE CASCADE,
+    owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    public_key TEXT NOT NULL UNIQUE,
+    secret_hash TEXT NOT NULL,
+    enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    allowed_origins TEXT NOT NULL DEFAULT '[]',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TIMESTAMP WITH TIME ZONE
+);
+CREATE INDEX IF NOT EXISTS idx_custom_bot_integrations_owner_id ON custom_bot_integrations(owner_id);
+
+-- 18. Studio Templates Table
+CREATE TABLE IF NOT EXISTS studio_templates (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    category TEXT DEFAULT 'process_flow',
+    diagram_data TEXT NOT NULL,
+    node_count INTEGER DEFAULT 0,
+    is_public BOOLEAN NOT NULL DEFAULT TRUE,
+    created_by TEXT,
+    created_by_name TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_studio_templates_public ON studio_templates(is_public);
+CREATE INDEX IF NOT EXISTS idx_studio_templates_created_by ON studio_templates(created_by);
+"""
