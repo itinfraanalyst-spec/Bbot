@@ -11,7 +11,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useConversations } from '../hooks/useConversations';
 import { LanguageSelector } from '../components/chat/LanguageSelector';
 import { useProjects } from '../hooks/useProjects';
-import { Sun, Moon, HelpCircle, Menu, Sparkles, Languages, Loader2, Folder, SquarePen } from 'lucide-react';
+import { Sun, Moon, HelpCircle, Menu, Sparkles, Languages, Loader2, Folder } from 'lucide-react';
 
 export function ChatPage() {
   const { t, language, currentLanguageOption } = useLanguage();
@@ -234,20 +234,9 @@ export function ChatPage() {
               </div>
             )}
 
-            <div className="flex items-center gap-2 min-w-0">
-              <h3 className="text-xs sm:text-sm font-semibold text-[var(--text-primary)] truncate max-w-[90px] xs:max-w-[130px] sm:max-w-none">
-                {currentConversationId ? t('conversation') : currentProject ? 'New Thread' : t('newChat')}
-              </h3>
-              <button
-                type="button"
-                onClick={() => handleNewConversation()}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-semibold transition-all cursor-pointer shadow-xs border-none shrink-0"
-                title={t('newChat')}
-              >
-                <SquarePen size={13} />
-                <span className="hidden xs:inline">{t('newChat')}</span>
-              </button>
-            </div>
+            <h3 className="text-xs sm:text-sm font-semibold text-[var(--text-primary)] truncate max-w-[90px] xs:max-w-[130px] sm:max-w-none">
+              {currentConversationId ? t('conversation') : currentProject ? 'New Thread' : t('newChat')}
+            </h3>
 
             {/* Attached Docs */}
             {currentConversationId && (documents.length > 0 || uploadError) && (
