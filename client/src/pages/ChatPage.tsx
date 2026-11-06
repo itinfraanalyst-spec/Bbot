@@ -59,18 +59,25 @@ export function ChatPage() {
 
   const { theme, toggleTheme } = useTheme();
 
-  const hasInitializedRef = useRef(false);
+  const hasInitializedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!userId || hasInitializedRef.current) return;
-    const storedId = localStorage.getItem(conversationStorageKey);
-    if (storedId) {
-      setSelectedConvId(storedId);
-      hasInitializedRef.current = true;
-    } else if (!explicitNewChat && conversations.length > 0) {
-      setSelectedConvId(conversations[0]?.id || null);
-      hasInitializedRef.current = true;
+    if (!userId) {
+      hasInitializedRef.current = null;
+      setSelectedConvId(null);
+      setMessages([]);
+      return;
     }
-  }, [conversationStorageKey, userId, conversations, explicitNewChat]);
+    if (hasInitializedRef.current === userId) return;
+
+    hasInitializedRef.current = userId;
+    const storedId = localStorage.getItem(conversationStorageKey);
+    if (storedId && !explicitNewChat) {
+      setSelectedConvId(storedId);
+    } else {
+      setSelectedConvId(null);
+      setMessages([]);
+    }
+  }, [conversationStorageKey, userId, setMessages, explicitNewChat]);
 
   useEffect(() => {
     if (!isHelpOpen) return;

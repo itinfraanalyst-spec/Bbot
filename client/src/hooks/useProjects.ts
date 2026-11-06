@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../contexts/AuthContext';
 import type { Conversation } from './useConversations';
 
 export interface Project {
@@ -19,6 +20,7 @@ export interface Project {
 const EMPTY_PROJECTS: Project[] = [];
 
 export function useProjects() {
+  const { userId } = useAuth();
   const queryClient = useQueryClient();
 
   const fetchProjects = async (): Promise<Project[]> => {
@@ -31,8 +33,9 @@ export function useProjects() {
   };
 
   const { data: projects = EMPTY_PROJECTS, isLoading, isError, refetch } = useQuery({
-    queryKey: ['projects'],
+    queryKey: ['projects', userId || 'anonymous'],
     queryFn: fetchProjects,
+    enabled: !!userId,
   });
 
   const createProjectMutation = useMutation({

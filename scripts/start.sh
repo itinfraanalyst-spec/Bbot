@@ -25,14 +25,7 @@ try:
             )
         conn.commit()
 
-    # Ensure all conversations belong to admin so chat history persists across logins
-    with get_connection() as c_conn:
-        c_conn.execute(
-            'UPDATE conversations SET user_id = ? WHERE user_id IS NULL OR user_id = \'admin-default-id\' OR user_id = ?',
-            (admin_id, admin_id)
-        )
-        c_conn.commit()
-    print(f'SUCCESS: Admin account ready (id={admin_id}) and chat history linked.')
+    print(f'SUCCESS: Admin account ready (id={admin_id}).')
 except Exception as e:
     print('Admin init notice:', e)
 "

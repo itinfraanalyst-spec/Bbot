@@ -14,6 +14,10 @@ const CHAT_TIMEOUT_MS = 600000; // 10 minutes for slow local LLM inference; avoi
 
 export const conversationMessageCache = new Map<string, Message[]>();
 
+export function clearConversationMessageCache() {
+  conversationMessageCache.clear();
+}
+
 export function useChat(
   initialConversationId: string | null | undefined, 
   chatEndpoint = '/api/chat', 

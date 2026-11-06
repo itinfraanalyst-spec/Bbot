@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
+import { queryClient } from '../queryClient';
+import { clearConversationMessageCache } from '../hooks/useChat';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -50,7 +52,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async () => {
-    // Re-check auth to grab the isAdmin status after logging in
+    queryClient.clear();
+    clearConversationMessageCache();
     setIsLoading(true);
     await checkAuth();
   };
@@ -58,7 +61,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       await fetch('/auth/logout', {
-      credentials: "include", method: 'POST' });
+        credentials: "include", method: 'POST' 
+      });
+    } catch {}
+    queryClient.clear();
+    clearConversationMessageCache();
+    // Clear user-specific storage
+    try {
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith('trpwbot.currentConversationId')) {
+          localStorage.removeItem(key);
+        }
+      });
     } catch {}
     setIsAuthenticated(false);
     setIsAdmin(false);

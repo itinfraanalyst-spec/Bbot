@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../contexts/AuthContext';
 
 export interface Conversation {
   id: string;
@@ -14,7 +15,7 @@ export interface Conversation {
 const EMPTY_CONVERSATIONS: Conversation[] = [];
 
 export function useConversations() {
-  
+  const { userId } = useAuth();
   const queryClient = useQueryClient();
 
   const fetchConversations = async (): Promise<Conversation[]> => {
@@ -27,8 +28,9 @@ export function useConversations() {
   };
 
   const { data: conversations = EMPTY_CONVERSATIONS, isLoading, isError, refetch } = useQuery({
-    queryKey: ['conversations'],
+    queryKey: ['conversations', userId || 'anonymous'],
     queryFn: fetchConversations,
+    enabled: !!userId,
   });
 
   const deleteMutation = useMutation({

@@ -200,11 +200,6 @@ def update_conversation_progress(conversation_id: str, req: UpdateConversationPr
 def list_conversations(repo: ConversationRepository = Depends(get_repository), current_user: dict = Depends(get_current_user)):
     user_id = current_user.get("id")
     convs = repo.get_conversations_by_user(user_id)
-    if not convs and current_user.get("is_admin"):
-        with get_connection() as conn:
-            conn.execute("UPDATE conversations SET user_id = ? WHERE user_id IS NULL OR user_id = 'admin-default-id'", (user_id,))
-            conn.commit()
-        convs = repo.get_conversations_by_user(user_id)
     return {"conversations": convs}
 
 @router.get("/conversations/{conversation_id}")
@@ -212,7 +207,7 @@ def get_conversation(conversation_id: str, repo: ConversationRepository = Depend
     conv = repo.get_conversation(conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    if conv.get("user_id") != current_user.get("id") and not current_user.get("is_admin"):
+    if conv.get("user_id") != current_user.get("id"):
         raise HTTPException(status_code=403, detail="Forbidden")
     messages = repo.get_messages(conversation_id)
     return {"conversation": conv, "messages": messages}
@@ -279,7 +274,7 @@ def delete_conversation(conversation_id: str, repo: ConversationRepository = Dep
     conv = repo.get_conversation(conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    if conv.get("user_id") != current_user.get("id") and not current_user.get("is_admin"):
+    if conv.get("user_id") != current_user.get("id"):
         raise HTTPException(status_code=403, detail="Forbidden")
         
     success = repo.delete_conversation(conversation_id)
@@ -292,7 +287,7 @@ def pin_conversation(conversation_id: str, repo: ConversationRepository = Depend
     conv = repo.get_conversation(conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    if conv.get("user_id") != current_user.get("id") and not current_user.get("is_admin"):
+    if conv.get("user_id") != current_user.get("id"):
         raise HTTPException(status_code=403, detail="Forbidden")
         
     success = repo.pin_conversation(conversation_id, current_user.get("id"))
@@ -305,7 +300,7 @@ def unpin_conversation(conversation_id: str, repo: ConversationRepository = Depe
     conv = repo.get_conversation(conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    if conv.get("user_id") != current_user.get("id") and not current_user.get("is_admin"):
+    if conv.get("user_id") != current_user.get("id"):
         raise HTTPException(status_code=403, detail="Forbidden")
         
     success = repo.unpin_conversation(conversation_id, current_user.get("id"))
@@ -321,7 +316,7 @@ def update_conversation_title(conversation_id: str, req: UpdateConversationTitle
     conv = repo.get_conversation(conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    if conv.get("user_id") != current_user.get("id") and not current_user.get("is_admin"):
+    if conv.get("user_id") != current_user.get("id"):
         raise HTTPException(status_code=403, detail="Forbidden")
         
     success = repo.update_conversation_title(conversation_id, req.title, current_user.get("id"))
@@ -559,7 +554,7 @@ def associate_document(conversation_id: str, req: AssociateDocumentRequest,
     conv = repo.get_conversation(conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    if conv.get("user_id") != current_user.get("id") and not current_user.get("is_admin"):
+    if conv.get("user_id") != current_user.get("id"):
         raise HTTPException(status_code=403, detail="Forbidden")
         
     document = doc_repo.get_document(req.document_id)
@@ -578,7 +573,7 @@ def detach_document(conversation_id: str, document_id: str, repo: ConversationRe
     conv = repo.get_conversation(conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    if conv.get("user_id") != current_user.get("id") and not current_user.get("is_admin"):
+    if conv.get("user_id") != current_user.get("id"):
         raise HTTPException(status_code=403, detail="Forbidden")
         
     success = doc_repo.detach_document_from_conversation(conversation_id, document_id)
@@ -591,7 +586,7 @@ def get_conversation_documents(conversation_id: str, repo: ConversationRepositor
     conv = repo.get_conversation(conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    if conv.get("user_id") != current_user.get("id") and not current_user.get("is_admin"):
+    if conv.get("user_id") != current_user.get("id"):
         raise HTTPException(status_code=403, detail="Forbidden")
         
     docs = doc_repo.get_conversation_documents(conversation_id)
