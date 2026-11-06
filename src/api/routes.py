@@ -554,15 +554,15 @@ def associate_document(conversation_id: str, req: AssociateDocumentRequest,
     conv = repo.get_conversation(conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    if conv.get("user_id") != current_user.get("id"):
+    if conv.get("user_id") and conv.get("user_id") != current_user.get("id") and not current_user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Forbidden")
         
     document = doc_repo.get_document(req.document_id)
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
-    if not document.get("user_id"):
+    if not document.get("user_id") and not current_user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Document is quarantined (orphaned) and inaccessible")
-    if document.get("user_id") != current_user.get("id") and not current_user.get("is_admin"):
+    if document.get("user_id") and document.get("user_id") != current_user.get("id") and not current_user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Forbidden")
         
     doc_repo.associate_document_with_conversation(conversation_id, req.document_id)
@@ -573,7 +573,7 @@ def detach_document(conversation_id: str, document_id: str, repo: ConversationRe
     conv = repo.get_conversation(conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    if conv.get("user_id") != current_user.get("id"):
+    if conv.get("user_id") and conv.get("user_id") != current_user.get("id") and not current_user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Forbidden")
         
     success = doc_repo.detach_document_from_conversation(conversation_id, document_id)
@@ -586,7 +586,7 @@ def get_conversation_documents(conversation_id: str, repo: ConversationRepositor
     conv = repo.get_conversation(conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    if conv.get("user_id") != current_user.get("id"):
+    if conv.get("user_id") and conv.get("user_id") != current_user.get("id") and not current_user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Forbidden")
         
     docs = doc_repo.get_conversation_documents(conversation_id)

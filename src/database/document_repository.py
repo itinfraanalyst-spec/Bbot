@@ -105,6 +105,7 @@ class DocumentRepository:
             return cursor.rowcount > 0
 
     def associate_document_with_conversation(self, conv_id: str, doc_id: str):
+        invalidate_conversation_docs_cache(conv_id)
         with get_connection() as conn:
             conn.execute(
                 "INSERT INTO conversation_documents (conversation_id, document_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
@@ -113,6 +114,7 @@ class DocumentRepository:
             conn.commit()
 
     def detach_document_from_conversation(self, conv_id: str, doc_id: str) -> bool:
+        invalidate_conversation_docs_cache(conv_id)
         with get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM conversation_documents WHERE conversation_id = ? AND document_id = ?", (conv_id, doc_id))

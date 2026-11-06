@@ -94,7 +94,10 @@ export function useDocuments(
         body: JSON.stringify({ document_id: docId })
       });
       
-      if (!attachRes.ok) throw new Error("Failed to attach document");
+      if (!attachRes.ok) {
+        const errData = await attachRes.json().catch(() => ({}));
+        throw new Error(errData.detail || "Failed to attach document");
+      }
       return { document: data.document, conversationId: targetConversationId };
     },
     onSuccess: (result) => {

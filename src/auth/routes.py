@@ -6,6 +6,7 @@ from src.core.rate_limit import limiter, check_username_rate_limit, clear_userna
 from src.config import settings
 from src.auth import db, security, dependencies
 from src.auth.password_policy import validate_password
+from src.database.adapter import is_postgres
 from src.database.repository import ConversationRepository
 from src.database.verified_knowledge_repository import VerifiedKnowledgeRepository
 import re
@@ -179,8 +180,7 @@ def admin_recovery(request: Request, body: AdminRecoveryRequest):
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
         
-    try:
-        with db.get_db_connection() as conn:
+    with db.get_db_connection() as conn:
         conn.execute(
             "UPDATE users SET password_hash = ?, token_version = COALESCE(token_version, 0) + 1, failed_login_attempts = 0, locked_until = NULL WHERE id = ?",
             (security.get_password_hash(body.new_password), user["id"]),
@@ -465,224 +465,285 @@ def get_analytics(
     top_users = []
     trending = []
     top_documents = []
-    summary = {}
+    summary = {
+        "total_messages": 0,
+        "prev_messages": 0,
+        "total_conversations": 0,
+        "prev_conversations": 0,
+        "total_users": 0,
+        "prev_users": 0,
+        "active_today": 0,
+        "prev_active_today": 0,
+        "positive_feedback": 0,
+        "negative_feedback": 0,
+        "feedback_total": 0
+    }
     
     is_scoped = user_id and user_id != 'all'
-    
-    with db.get_db_connection() as conn:
-        # Define ranges
-        date_filter = ""
-        prev_date_filter = ""
-        group_col = ""
-        
-        if range == 'hourly':
-            date_filter = "datetime('now', '-24 hours')"
-            prev_date_filter = "datetime('now', '-48 hours')"
-            group_col = "strftime('%Y-%m-%d %H:00', m.created_at)"
-        elif range == 'daily':
-            date_filter = "date('now', '-30 days')"
-            prev_date_filter = "date('now', '-60 days')"
-            group_col = "DATE(m.created_at)"
-        elif range == 'weekly':
-            date_filter = "date('now', '-84 days')"
-            prev_date_filter = "date('now', '-168 days')"
-            group_col = "strftime('%Y-%W', m.created_at)"
-        elif range == 'monthly':
-            date_filter = "date('now', '-12 months')"
-            prev_date_filter = "date('now', '-24 months')"
-            group_col = "strftime('%Y-%m', m.created_at)"
-        elif range == 'yearly':
-            date_filter = "date('now', '-100 years')" 
-            prev_date_filter = "date('now', '-200 years')"
-            group_col = "strftime('%Y', m.created_at)"
-        else:
-            date_filter = "date('now', '-30 days')"
-            prev_date_filter = "date('now', '-60 days')"
-            group_col = "DATE(m.created_at)"
+    is_pg = is_postgres(settings.DATABASE_URL)
 
-        # Helper to get stats
-        def get_stat(query, params=(), is_prev=False):
-            if is_prev:
-                q = query.replace(">= " + date_filter, f">= {prev_date_filter} AND m.created_at < {date_filter}")
-            else:
-                q = query
-            res = conn.execute(q, params).fetchone()[0]
-            return res if res else 0
-
-        # Summary Stats
-        if is_scoped:
-            q_msgs = f"SELECT COUNT(m.id) FROM messages m JOIN conversations c ON m.conversation_id = c.id WHERE c.user_id = ? AND m.status != 'error' AND m.created_at >= {date_filter}"
-            total_msgs = get_stat(q_msgs, (user_id,))
-            prev_msgs = get_stat(q_msgs, (user_id,), True)
-
-            # For conversations, we approximate by filtering messages inside them for the period to be accurate, but simple created_at is fine
-            q_convs = f"SELECT COUNT(m.id) FROM conversations m WHERE m.user_id = ? AND m.created_at >= {date_filter}"
-            total_convs = get_stat(q_convs, (user_id,))
-            prev_convs = get_stat(q_convs, (user_id,), True)
+    try:
+        with db.get_db_connection() as conn:
+            # Define ranges
+            date_filter = ""
+            prev_date_filter = ""
+            group_col = ""
             
-            # Active today
-            active_today = conn.execute("SELECT COUNT(m.id) FROM messages m JOIN conversations c ON m.conversation_id = c.id WHERE c.user_id = ? AND m.status != 'error' AND DATE(m.created_at) = DATE('now')", (user_id,)).fetchone()[0]
-            
-            summary = {
-                "total_messages": total_msgs,
-                "prev_messages": prev_msgs,
-                "total_conversations": total_convs,
-                "prev_conversations": prev_convs,
-                "total_users": 1,
-                "prev_users": 1,
-                "active_today": 1 if active_today > 0 else 0,
-                "prev_active_today": 1 # Mock
-            }
-        else:
-            q_msgs = f"SELECT COUNT(m.id) FROM messages m WHERE m.status != 'error' AND m.created_at >= {date_filter}"
-            total_msgs = get_stat(q_msgs)
-            prev_msgs = get_stat(q_msgs, (), True)
-            
-            q_convs = f"SELECT COUNT(m.id) FROM conversations m WHERE m.created_at >= {date_filter}"
-            total_convs = get_stat(q_convs)
-            prev_convs = get_stat(q_convs, (), True)
-            
-            total_users = conn.execute("SELECT COUNT(*) FROM users WHERE status='approved'").fetchone()[0]
-            prev_users = conn.execute(f"SELECT COUNT(*) FROM users WHERE status='approved' AND created_at < {date_filter}").fetchone()[0]
-            
-            active_today = conn.execute("SELECT COUNT(DISTINCT c.user_id) FROM messages m JOIN conversations c ON m.conversation_id = c.id WHERE m.status != 'error' AND DATE(m.created_at) = DATE('now')").fetchone()[0]
-            prev_active_today = conn.execute("SELECT COUNT(DISTINCT c.user_id) FROM messages m JOIN conversations c ON m.conversation_id = c.id WHERE m.status != 'error' AND DATE(m.created_at) = DATE('now', '-1 day')").fetchone()[0]
-            
-            summary = {
-                "total_messages": total_msgs,
-                "prev_messages": prev_msgs,
-                "total_conversations": total_convs,
-                "prev_conversations": prev_convs,
-                "total_users": total_users,
-                "prev_users": prev_users,
-                "active_today": active_today,
-                "prev_active_today": prev_active_today
-            }
-
-        feedback_date_filter = date_filter.replace("m.created_at", "f.created_at")
-        feedback_query = f"""
-            SELECT f.rating, COUNT(*) AS count
-            FROM message_feedback f
-            JOIN messages m ON m.id = f.message_id
-            JOIN conversations c ON c.id = m.conversation_id
-            WHERE f.created_at >= {feedback_date_filter}
-        """
-        feedback_params = []
-        if is_scoped:
-            feedback_query += " AND c.user_id = ?"
-            feedback_params.append(user_id)
-        feedback_query += " GROUP BY f.rating"
-        feedback_rows = conn.execute(feedback_query, feedback_params).fetchall()
-        feedback_summary = {row["rating"]: row["count"] for row in feedback_rows}
-        summary.update({
-            "positive_feedback": feedback_summary.get("positive", 0),
-            "negative_feedback": feedback_summary.get("negative", 0),
-            "feedback_total": sum(feedback_summary.values()),
-        })
-        
-        # Top Users
-        if not is_scoped:
-            top_users_rows = conn.execute(f'''
-                SELECT COALESCE(u.username, 'Unattributed') as username, u.id as user_id, COUNT(m.id) as count 
-                FROM messages m 
-                LEFT JOIN conversations c ON m.conversation_id = c.id 
-                LEFT JOIN users u ON c.user_id = u.id 
-                WHERE m.status != 'error' AND m.created_at >= {date_filter}
-                GROUP BY COALESCE(u.id, 'unattributed')
-                ORDER BY count DESC 
-                LIMIT 5
-            ''').fetchall()
-            
-            for r in top_users_rows:
-                u_id = r["user_id"]
-                if u_id:
-                    spark = conn.execute(f'''
-                        SELECT {group_col} as date, COUNT(m.id) as count
-                        FROM messages m JOIN conversations c ON m.conversation_id = c.id
-                        WHERE c.user_id = ? AND m.status != 'error' AND m.created_at >= {date_filter}
-                        GROUP BY {group_col} ORDER BY date ASC
-                    ''', (u_id,)).fetchall()
-                    top_users.append({**dict(r), "sparkline": [dict(s) for s in spark]})
+            if is_pg:
+                if range == 'hourly':
+                    date_filter = "(CURRENT_TIMESTAMP - INTERVAL '24 hours')"
+                    prev_date_filter = "(CURRENT_TIMESTAMP - INTERVAL '48 hours')"
+                    group_col = "TO_CHAR(m.created_at, 'YYYY-MM-DD HH24:00')"
+                elif range == 'daily':
+                    date_filter = "(CURRENT_DATE - INTERVAL '30 days')"
+                    prev_date_filter = "(CURRENT_DATE - INTERVAL '60 days')"
+                    group_col = "TO_CHAR(m.created_at, 'YYYY-MM-DD')"
+                elif range == 'weekly':
+                    date_filter = "(CURRENT_DATE - INTERVAL '84 days')"
+                    prev_date_filter = "(CURRENT_DATE - INTERVAL '168 days')"
+                    group_col = "TO_CHAR(m.created_at, 'YYYY-WW')"
+                elif range == 'monthly':
+                    date_filter = "(CURRENT_DATE - INTERVAL '12 months')"
+                    prev_date_filter = "(CURRENT_DATE - INTERVAL '24 months')"
+                    group_col = "TO_CHAR(m.created_at, 'YYYY-MM')"
+                elif range == 'yearly':
+                    date_filter = "(CURRENT_DATE - INTERVAL '100 years')" 
+                    prev_date_filter = "(CURRENT_DATE - INTERVAL '200 years')"
+                    group_col = "TO_CHAR(m.created_at, 'YYYY')"
                 else:
-                    top_users.append({**dict(r), "sparkline": []})
-        
-        # Fetch trending terms via SQL, enforcing the minimum user floor and account age directly in the database
-        min_users = 1 if is_scoped else 3
-        
-        term_query = f"""
-            SELECT mt.term, COUNT(DISTINCT mt.user_id) as distinct_users, COUNT(mt.message_id) as count
-            FROM message_terms mt
-            JOIN users u ON mt.user_id = u.id
-            WHERE mt.created_at >= {date_filter}
-        """
-        
-        # Prevent gaming: user must be 24h old OR we are in scoped mode (viewing own stats)
-        if not is_scoped:
-            term_query += " AND u.created_at <= datetime('now', '-1 day')"
-            
-        term_params = []
-        if is_scoped:
-            term_query += " AND mt.user_id = ?"
-            term_params.append(user_id)
-            
-        term_query += f"""
-            GROUP BY mt.term
-            HAVING distinct_users >= {min_users}
-            ORDER BY count DESC
-            LIMIT 10
-        """
-        
-        try:
-            top_words = conn.execute(term_query, term_params).fetchall()
-            trending = [{"term": r["term"], "count": r["count"]} for r in top_words]
-        except Exception as e:
-            logger.error(f"Error fetching trending terms (message_terms might not exist yet): {e}")
-            trending = []
+                    date_filter = "(CURRENT_DATE - INTERVAL '30 days')"
+                    prev_date_filter = "(CURRENT_DATE - INTERVAL '60 days')"
+                    group_col = "TO_CHAR(m.created_at, 'YYYY-MM-DD')"
+                today_cond = "DATE(m.created_at) = CURRENT_DATE"
+                prev_today_cond = "DATE(m.created_at) = (CURRENT_DATE - INTERVAL '1 day')"
+                account_age_cond = "u.created_at <= (CURRENT_TIMESTAMP - INTERVAL '1 day')"
+            else:
+                if range == 'hourly':
+                    date_filter = "datetime('now', '-24 hours')"
+                    prev_date_filter = "datetime('now', '-48 hours')"
+                    group_col = "strftime('%Y-%m-%d %H:00', m.created_at)"
+                elif range == 'daily':
+                    date_filter = "date('now', '-30 days')"
+                    prev_date_filter = "date('now', '-60 days')"
+                    group_col = "DATE(m.created_at)"
+                elif range == 'weekly':
+                    date_filter = "date('now', '-84 days')"
+                    prev_date_filter = "date('now', '-168 days')"
+                    group_col = "strftime('%Y-%W', m.created_at)"
+                elif range == 'monthly':
+                    date_filter = "date('now', '-12 months')"
+                    prev_date_filter = "date('now', '-24 months')"
+                    group_col = "strftime('%Y-%m', m.created_at)"
+                elif range == 'yearly':
+                    date_filter = "date('now', '-100 years')" 
+                    prev_date_filter = "date('now', '-200 years')"
+                    group_col = "strftime('%Y', m.created_at)"
+                else:
+                    date_filter = "date('now', '-30 days')"
+                    prev_date_filter = "date('now', '-60 days')"
+                    group_col = "DATE(m.created_at)"
+                today_cond = "DATE(m.created_at) = DATE('now')"
+                prev_today_cond = "DATE(m.created_at) = DATE('now', '-1 day')"
+                account_age_cond = "u.created_at <= datetime('now', '-1 day')"
 
-        # Top Documents
-        doc_query = f'''
-            SELECT d.filename, COUNT(cd.conversation_id) as count 
-            FROM documents d 
-            JOIN conversation_documents cd ON d.id = cd.document_id 
-            JOIN conversations c ON cd.conversation_id = c.id 
-            WHERE c.created_at >= {date_filter}
-        '''
-        if is_scoped:
-            doc_query += " AND c.user_id = ?"
-            
-        doc_query += " GROUP BY d.id ORDER BY count DESC LIMIT 10"
-        
-        top_docs_rows = conn.execute(doc_query, term_params).fetchall()
-        top_documents = [{"filename": r["filename"], "count": r["count"]} for r in top_docs_rows]
+            # Helper to get stats
+            def get_stat(query, params=(), is_prev=False):
+                try:
+                    if is_prev:
+                        q = query.replace(">= " + date_filter, f">= {prev_date_filter} AND m.created_at < {date_filter}")
+                    else:
+                        q = query
+                    row = conn.execute(q, params).fetchone()
+                    return row[0] if (row and row[0] is not None) else 0
+                except Exception as e:
+                    logger.warning(f"Error in get_stat: {e}")
+                    return 0
 
-        vol_query = f'''
-            SELECT {group_col} as date, COUNT(m.id) as messages, COUNT(DISTINCT c.user_id) as active_users
-            FROM messages m
-            JOIN conversations c ON m.conversation_id = c.id
-            WHERE m.status != 'error' AND m.created_at >= {date_filter}
-        '''
-        if is_scoped:
-            vol_query += " AND c.user_id = ?"
-            vol_query += f" GROUP BY {group_col} ORDER BY date ASC"
-            vol_rows = conn.execute(vol_query, (user_id,)).fetchall()
-        else:
-            vol_query += f" GROUP BY {group_col} ORDER BY date ASC"
-            vol_rows = conn.execute(vol_query).fetchall()
+            # Summary Stats
+            if is_scoped:
+                q_msgs = f"SELECT COUNT(m.id) FROM messages m JOIN conversations c ON m.conversation_id = c.id WHERE c.user_id = ? AND m.status != 'error' AND m.created_at >= {date_filter}"
+                total_msgs = get_stat(q_msgs, (user_id,))
+                prev_msgs = get_stat(q_msgs, (user_id,), True)
+
+                q_convs = f"SELECT COUNT(m.id) FROM conversations m WHERE m.user_id = ? AND m.created_at >= {date_filter}"
+                total_convs = get_stat(q_convs, (user_id,))
+                prev_convs = get_stat(q_convs, (user_id,), True)
+                
+                # Active today
+                row = conn.execute(f"SELECT COUNT(m.id) FROM messages m JOIN conversations c ON m.conversation_id = c.id WHERE c.user_id = ? AND m.status != 'error' AND {today_cond}", (user_id,)).fetchone()
+                active_today = row[0] if (row and row[0] is not None) else 0
+                
+                summary.update({
+                    "total_messages": total_msgs,
+                    "prev_messages": prev_msgs,
+                    "total_conversations": total_convs,
+                    "prev_conversations": prev_convs,
+                    "total_users": 1,
+                    "prev_users": 1,
+                    "active_today": 1 if active_today > 0 else 0,
+                    "prev_active_today": 1
+                })
+            else:
+                q_msgs = f"SELECT COUNT(m.id) FROM messages m WHERE m.status != 'error' AND m.created_at >= {date_filter}"
+                total_msgs = get_stat(q_msgs)
+                prev_msgs = get_stat(q_msgs, (), True)
+                
+                q_convs = f"SELECT COUNT(m.id) FROM conversations m WHERE m.created_at >= {date_filter}"
+                total_convs = get_stat(q_convs)
+                prev_convs = get_stat(q_convs, (), True)
+                
+                row_users = conn.execute("SELECT COUNT(*) FROM users WHERE status='approved'").fetchone()
+                total_users = row_users[0] if (row_users and row_users[0] is not None) else 0
+
+                row_prev = conn.execute(f"SELECT COUNT(*) FROM users WHERE status='approved' AND created_at < {date_filter}").fetchone()
+                prev_users = row_prev[0] if (row_prev and row_prev[0] is not None) else 0
+                
+                row_act = conn.execute(f"SELECT COUNT(DISTINCT c.user_id) FROM messages m JOIN conversations c ON m.conversation_id = c.id WHERE m.status != 'error' AND {today_cond}").fetchone()
+                active_today = row_act[0] if (row_act and row_act[0] is not None) else 0
+
+                row_prev_act = conn.execute(f"SELECT COUNT(DISTINCT c.user_id) FROM messages m JOIN conversations c ON m.conversation_id = c.id WHERE m.status != 'error' AND {prev_today_cond}").fetchone()
+                prev_active_today = row_prev_act[0] if (row_prev_act and row_prev_act[0] is not None) else 0
+                
+                summary.update({
+                    "total_messages": total_msgs,
+                    "prev_messages": prev_msgs,
+                    "total_conversations": total_convs,
+                    "prev_conversations": prev_convs,
+                    "total_users": total_users,
+                    "prev_users": prev_users,
+                    "active_today": active_today,
+                    "prev_active_today": prev_active_today
+                })
+
+            feedback_date_filter = date_filter.replace("m.created_at", "f.created_at")
+            feedback_query = f"""
+                SELECT f.rating, COUNT(*) AS count
+                FROM message_feedback f
+                JOIN messages m ON m.id = f.message_id
+                JOIN conversations c ON c.id = m.conversation_id
+                WHERE f.created_at >= {feedback_date_filter}
+            """
+            feedback_params = []
+            if is_scoped:
+                feedback_query += " AND c.user_id = ?"
+                feedback_params.append(user_id)
+            feedback_query += " GROUP BY f.rating"
+            try:
+                feedback_rows = conn.execute(feedback_query, feedback_params).fetchall()
+                feedback_summary = {row["rating"]: row["count"] for row in feedback_rows}
+                summary.update({
+                    "positive_feedback": feedback_summary.get("positive", 0),
+                    "negative_feedback": feedback_summary.get("negative", 0),
+                    "feedback_total": sum(feedback_summary.values()),
+                })
+            except Exception as e:
+                logger.error(f"Error fetching feedback summary: {e}")
             
-        volume = [dict(r) for r in vol_rows]
+            # Top Users
+            if not is_scoped:
+                try:
+                    top_users_rows = conn.execute(f"""
+                        SELECT COALESCE(u.username, 'Unattributed') as username, u.id as user_id, COUNT(m.id) as count 
+                        FROM messages m 
+                        LEFT JOIN conversations c ON m.conversation_id = c.id 
+                        LEFT JOIN users u ON c.user_id = u.id 
+                        WHERE m.status != 'error' AND m.created_at >= {date_filter}
+                        GROUP BY u.id, u.username
+                        ORDER BY count DESC 
+                        LIMIT 5
+                    """).fetchall()
+                    
+                    for r in top_users_rows:
+                        u_id = r["user_id"]
+                        if u_id:
+                            spark = conn.execute(f"""
+                                SELECT {group_col} as date, COUNT(m.id) as count
+                                FROM messages m JOIN conversations c ON m.conversation_id = c.id
+                                WHERE c.user_id = ? AND m.status != 'error' AND m.created_at >= {date_filter}
+                                GROUP BY {group_col} ORDER BY date ASC
+                            """, (u_id,)).fetchall()
+                            top_users.append({**dict(r), "sparkline": [dict(s) for s in spark]})
+                        else:
+                            top_users.append({**dict(r), "sparkline": []})
+                except Exception as e:
+                    logger.error(f"Error fetching top users: {e}")
+            
+            # Fetch trending terms via SQL, enforcing the minimum user floor and account age directly in the database
+            min_users = 1 if is_scoped else 3
+            
+            term_query = f"""
+                SELECT mt.term, COUNT(DISTINCT mt.user_id) as distinct_users, COUNT(mt.message_id) as count
+                FROM message_terms mt
+                JOIN users u ON mt.user_id = u.id
+                WHERE mt.created_at >= {date_filter}
+            """
+            
+            if not is_scoped:
+                term_query += f" AND {account_age_cond}"
+                
+            term_params = []
+            if is_scoped:
+                term_query += " AND mt.user_id = ?"
+                term_params.append(user_id)
+                
+            term_query += f"""
+                GROUP BY mt.term
+                HAVING COUNT(DISTINCT mt.user_id) >= {min_users}
+                ORDER BY count DESC
+                LIMIT 10
+            """
+            
+            try:
+                top_words = conn.execute(term_query, term_params).fetchall()
+                trending = [{"term": r["term"], "count": r["count"]} for r in top_words]
+            except Exception as e:
+                logger.error(f"Error fetching trending terms: {e}")
+                trending = []
+
+            # Top Documents
+            try:
+                doc_query = f"""
+                    SELECT d.filename, COUNT(cd.conversation_id) as count 
+                    FROM documents d 
+                    JOIN conversation_documents cd ON d.id = cd.document_id 
+                    JOIN conversations c ON cd.conversation_id = c.id 
+                    WHERE c.created_at >= {date_filter}
+                """
+                doc_params = []
+                if is_scoped:
+                    doc_query += " AND c.user_id = ?"
+                    doc_params.append(user_id)
+                    
+                doc_query += " GROUP BY d.id, d.filename ORDER BY count DESC LIMIT 10"
+                
+                top_docs_rows = conn.execute(doc_query, doc_params).fetchall()
+                top_documents = [{"filename": r["filename"], "count": r["count"]} for r in top_docs_rows]
+            except Exception as e:
+                logger.error(f"Error fetching top documents: {e}")
+                top_documents = []
+
+            try:
+                vol_query = f"""
+                    SELECT {group_col} as date, COUNT(m.id) as messages, COUNT(DISTINCT c.user_id) as active_users
+                    FROM messages m
+                    JOIN conversations c ON m.conversation_id = c.id
+                    WHERE m.status != 'error' AND m.created_at >= {date_filter}
+                """
+                if is_scoped:
+                    vol_query += " AND c.user_id = ?"
+                    vol_query += f" GROUP BY {group_col} ORDER BY date ASC"
+                    vol_rows = conn.execute(vol_query, (user_id,)).fetchall()
+                else:
+                    vol_query += f" GROUP BY {group_col} ORDER BY date ASC"
+                    vol_rows = conn.execute(vol_query).fetchall()
+                    
+                volume = [dict(r) for r in vol_rows]
+            except Exception as e:
+                logger.error(f"Error fetching volume: {e}")
+                volume = []
+
     except Exception as e:
-        logger.error(f"Error fetching system metrics analytics: {e}", exc_info=True)
-        if not summary:
-            summary = {
-                "total_messages": 0,
-                "prev_messages": 0,
-                "total_conversations": 0,
-                "prev_conversations": 0,
-                "total_users": 0,
-                "prev_users": 0,
-                "active_today": 0,
-                "prev_active_today": 0
-            }
+        logger.error(f"Error in get_analytics: {e}", exc_info=True)
 
     return {
         "volume": volume,
