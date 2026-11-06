@@ -81,6 +81,64 @@ class PostgresCursorWrapper:
             if "ON CONFLICT" not in clean_sql.upper():
                 clean_sql = clean_sql.rstrip("; \t\n\r") + " ON CONFLICT DO NOTHING"
 
+        # Translate SQLite datetime/date modifiers to PostgreSQL intervals
+        clean_sql = re.sub(
+            r"datetime\(\s*'now'\s*,\s*'-?(\d+)\s*hours?'\s*\)",
+            r"(CURRENT_TIMESTAMP - INTERVAL '\1 hours')",
+            clean_sql,
+            flags=re.IGNORECASE,
+        )
+        clean_sql = re.sub(
+            r"datetime\(\s*'now'\s*,\s*'-?(\d+)\s*days?'\s*\)",
+            r"(CURRENT_TIMESTAMP - INTERVAL '\1 days')",
+            clean_sql,
+            flags=re.IGNORECASE,
+        )
+        clean_sql = re.sub(
+            r"date\(\s*'now'\s*,\s*'-?(\d+)\s*(days?|months?|years?)'\s*\)",
+            r"(CURRENT_DATE - INTERVAL '\1 \2')",
+            clean_sql,
+            flags=re.IGNORECASE,
+        )
+        clean_sql = re.sub(
+            r"DATE\(\s*'now'\s*,\s*'-?(\d+)\s*(days?|months?|years?)'\s*\)",
+            r"(CURRENT_DATE - INTERVAL '\1 \2')",
+            clean_sql,
+            flags=re.IGNORECASE,
+        )
+        clean_sql = re.sub(
+            r"DATE\(\s*'now'\s*\)",
+            r"CURRENT_DATE",
+            clean_sql,
+            flags=re.IGNORECASE,
+        )
+
+        # Translate SQLite strftime to PostgreSQL TO_CHAR
+        clean_sql = re.sub(
+            r"strftime\(\s*'%Y-%m-%d %H:00'\s*,\s*([^)]+)\)",
+            r"TO_CHAR(\1, 'YYYY-MM-DD HH24:00')",
+            clean_sql,
+            flags=re.IGNORECASE,
+        )
+        clean_sql = re.sub(
+            r"strftime\(\s*'%Y-%W'\s*,\s*([^)]+)\)",
+            r"TO_CHAR(\1, 'YYYY-WW')",
+            clean_sql,
+            flags=re.IGNORECASE,
+        )
+        clean_sql = re.sub(
+            r"strftime\(\s*'%Y-%m'\s*,\s*([^)]+)\)",
+            r"TO_CHAR(\1, 'YYYY-MM')",
+            clean_sql,
+            flags=re.IGNORECASE,
+        )
+        clean_sql = re.sub(
+            r"strftime\(\s*'%Y'\s*,\s*([^)]+)\)",
+            r"TO_CHAR(\1, 'YYYY')",
+            clean_sql,
+            flags=re.IGNORECASE,
+        )
+
         return clean_sql
 
     def execute(self, sql, params=None):

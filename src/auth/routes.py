@@ -179,7 +179,8 @@ def admin_recovery(request: Request, body: AdminRecoveryRequest):
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
         
-    with db.get_db_connection() as conn:
+    try:
+        with db.get_db_connection() as conn:
         conn.execute(
             "UPDATE users SET password_hash = ?, token_version = COALESCE(token_version, 0) + 1, failed_login_attempts = 0, locked_until = NULL WHERE id = ?",
             (security.get_password_hash(body.new_password), user["id"]),
@@ -669,6 +670,19 @@ def get_analytics(
             vol_rows = conn.execute(vol_query).fetchall()
             
         volume = [dict(r) for r in vol_rows]
+    except Exception as e:
+        logger.error(f"Error fetching system metrics analytics: {e}", exc_info=True)
+        if not summary:
+            summary = {
+                "total_messages": 0,
+                "prev_messages": 0,
+                "total_conversations": 0,
+                "prev_conversations": 0,
+                "total_users": 0,
+                "prev_users": 0,
+                "active_today": 0,
+                "prev_active_today": 0
+            }
 
     return {
         "volume": volume,

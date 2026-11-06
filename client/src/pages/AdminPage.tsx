@@ -253,7 +253,12 @@ export function AdminPage() {
     }
   };
 
-  if (error) {
+  const isForbiddenError = error && (
+    (error as Error).message.toLowerCase().includes('forbidden') ||
+    (error as Error).message.toLowerCase().includes('admin access required')
+  );
+
+  if (isForbiddenError) {
     return (
       <div className="min-h-screen bg-[var(--bg-primary)] flex flex-col items-center justify-center p-4">
         <div className="bg-[var(--bg-surface)] p-8 rounded-[var(--radius-lg)] border border-[rgba(250,82,82,0.3)] text-center max-w-md w-full">
@@ -262,15 +267,9 @@ export function AdminPage() {
           </div>
           <h2 className="text-[var(--text-primary)] text-xl font-bold mb-2">Access Denied</h2>
           <p className="text-[var(--text-secondary)] mb-6">
-            {(error as Error).message}
+            Administrator privileges required to view this panel.
           </p>
           <div className="flex gap-4 justify-center">
-            <button
-              onClick={() => refetch()}
-              className="bg-[var(--bg-surface-hover)] hover:bg-[var(--border-subtle)] text-[var(--text-primary)] px-4 py-2 rounded-[var(--radius-md)] transition-colors inline-flex items-center gap-2"
-            >
-              Retry
-            </button>
             <button
               onClick={() => navigate('/')}
               className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white px-4 py-2 rounded-[var(--radius-md)] transition-colors inline-flex items-center gap-2"
@@ -391,6 +390,20 @@ export function AdminPage() {
                 {label}
               </button>
             ))}
+          </div>
+        )}
+
+        {activeTab === 'overview' && error && !isForbiddenError && (
+          <div className="rounded-[var(--radius-md)] border border-[rgba(250,82,82,0.35)] bg-[rgba(250,82,82,0.08)] p-4 flex items-center justify-between">
+            <div className="text-sm text-[var(--error)]">
+              Analytics metrics temporarily unavailable: {(error as Error).message}
+            </div>
+            <button
+              onClick={() => refetch()}
+              className="text-xs bg-[var(--accent)] text-white px-3 py-1.5 rounded-md hover:bg-[var(--accent-hover)] font-medium"
+            >
+              Retry
+            </button>
           </div>
         )}
 
