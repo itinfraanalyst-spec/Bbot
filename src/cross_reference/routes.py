@@ -11,6 +11,8 @@ from src.cross_reference.schemas import (
     CrossDocExportRequest,
     UploadDocResponse,
     DocumentUnderstanding,
+    HarmonizeClauseRequest,
+    HarmonizeClauseResponse,
 )
 from src.cross_reference.service import CrossReferenceService
 
@@ -145,6 +147,20 @@ def query_cross_reference(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Cross-document query failed: {str(e)}")
+
+
+@router.post("/harmonize", response_model=HarmonizeClauseResponse)
+def harmonize_conflict_clause(
+    req: HarmonizeClauseRequest,
+    current_user: dict = Depends(get_current_user),
+) -> HarmonizeClauseResponse:
+    """
+    Synthesizes a unified, legally/operationally sound compromise clause resolving two contradictory clauses.
+    """
+    try:
+        return _service.harmonize_clause(req)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Harmonization synthesis failed: {str(e)}")
 
 
 @router.post("/export")

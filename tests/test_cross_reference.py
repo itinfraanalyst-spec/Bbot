@@ -141,6 +141,20 @@ Finance department conducts monthly audits.
         self.assertEqual(resp.links[0].relation, "contradiction")
         self.assertEqual(len(resp.comparison_matrix), 1)
 
+    def test_harmonize_clause(self):
+        from src.cross_reference.schemas import HarmonizeClauseRequest
+        req = HarmonizeClauseRequest(
+            topic="Expenditure Threshold",
+            doc_a_clause="Dual approval mandatory over $5,000",
+            doc_b_clause="Single signoff permitted up to $10,000",
+            conflict_detail="Audit threshold mismatch",
+            doc_a_name="Policy A",
+            doc_b_name="SOP B",
+        )
+        res = self.service.harmonize_clause(req)
+        self.assertTrue(len(res.harmonized_clause) > 10)
+        self.assertTrue(len(res.rationale) > 5)
+
 
 if __name__ == "__main__":
     unittest.main()

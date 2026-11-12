@@ -67,6 +67,7 @@ class DiscrepancyItem(BaseModel):
     doc_b_clause: str
     conflict_detail: str
     suggested_action: str
+    harmonized_clause: Optional[str] = None
 
 
 class CrossDocSummary(BaseModel):
@@ -120,3 +121,18 @@ class UploadDocResponse(BaseModel):
     page_count: int
     slot: str = "doc_a"
     understanding: DocumentUnderstanding
+
+
+class HarmonizeClauseRequest(BaseModel):
+    topic: str
+    doc_a_clause: str
+    doc_b_clause: str
+    conflict_detail: str
+    doc_a_name: Optional[str] = "Document 1"
+    doc_b_name: Optional[str] = "Document 2"
+
+
+class HarmonizeClauseResponse(BaseModel):
+    harmonized_clause: str
+    rationale: str
+    suggested_revision_type: str = "compromise"

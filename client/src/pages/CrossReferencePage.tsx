@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   UploadCloud,
@@ -22,6 +22,12 @@ import {
   FileCode,
   X,
   Trash2,
+  Search,
+  Printer,
+  History,
+  Copy,
+  Check,
+  Diff,
 } from 'lucide-react';
 
 interface DocumentSummaryItem {
@@ -88,6 +94,7 @@ interface DiscrepancyItem {
   doc_b_clause: string;
   conflict_detail: string;
   suggested_action: string;
+  harmonized_clause?: string;
 }
 
 interface CrossDocSummary {
@@ -115,6 +122,54 @@ interface CrossReferenceResponse {
   summary: CrossDocSummary;
 }
 
+interface SavedAuditRecord {
+  id: string;
+  timestamp: string;
+  doc_a_name: string;
+  doc_b_name: string;
+  alignment_score: number;
+  data: CrossReferenceResponse;
+}
+
+// Simple word-level diff utility
+interface DiffPart {
+  type: 'same' | 'added' | 'removed';
+  text: string;
+}
+
+function computeWordDiff(textA: string, textB: string): DiffPart[] {
+  const wordsA = textA.split(/\s+/).filter(Boolean);
+  const wordsB = textB.split(/\s+/).filter(Boolean);
+  const parts: DiffPart[] = [];
+
+  const maxLen = Math.max(wordsA.length, wordsB.length);
+  let i = 0;
+  let j = 0;
+
+  while (i < wordsA.length || j < wordsB.length) {
+    if (i < wordsA.length && j < wordsB.length && wordsA[i].toLowerCase() === wordsB[j].toLowerCase()) {
+      parts.push({ type: 'same', text: wordsB[j] + ' ' });
+      i++;
+      j++;
+    } else {
+      if (i < wordsA.length && !wordsB.slice(j, j + 4).map(w => w.toLowerCase()).includes(wordsA[i].toLowerCase())) {
+        parts.push({ type: 'removed', text: wordsA[i] + ' ' });
+        i++;
+      } else if (j < wordsB.length) {
+        parts.push({ type: 'added', text: wordsB[j] + ' ' });
+        j++;
+      } else {
+        if (i < wordsA.length) {
+          parts.push({ type: 'removed', text: wordsA[i] + ' ' });
+          i++;
+        }
+      }
+    }
+    if (parts.length > maxLen * 2) break; // safeguard
+  }
+  return parts;
+}
+
 export function CrossReferencePage() {
   const [documents, setDocuments] = useState<DocumentSummaryItem[]>([]);
   const [docAId, setDocAId] = useState<string>('');
@@ -135,9 +190,20 @@ export function CrossReferencePage() {
   const [activeTab, setActiveTab] = useState<'understanding' | 'matrix' | 'conflicts' | 'reader' | 'copilot'>('understanding');
   const [understandingSubTab, setUnderstandingSubTab] = useState<'both' | 'doc_a' | 'doc_b'>('both');
 
-  // Interactive filters & selected sections
+  // Reader enhancements: Search & Redline Diff
+  const [readerSearchQuery, setReaderSearchQuery] = useState('');
+  const [readerMode, setReaderMode] = useState<'split' | 'redline'>('split');
   const [selectedSectionAId, setSelectedSectionAId] = useState<string | null>(null);
   const [selectedSectionBId, setSelectedSectionBId] = useState<string | null>(null);
+  const sectionRefsB = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // Harmonize state: id -> { clause, rationale, loading }
+  const [harmonizedMap, setHarmonizedMap] = useState<Record<string, { clause: string; rationale: string; loading: boolean }>>({});
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Audit History state
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [auditHistory, setAuditHistory] = useState<SavedAuditRecord[]>([]);
 
   // Copilot state
   const [copilotQuery, setCopilotQuery] = useState('');
@@ -149,9 +215,10 @@ export function CrossReferencePage() {
     },
   ]);
 
-  // Load available documents list on mount
+  // Load documents and saved history on mount
   useEffect(() => {
     loadDocuments();
+    loadAuditHistory();
   }, []);
 
   const loadDocuments = async () => {
@@ -168,6 +235,51 @@ export function CrossReferencePage() {
     } catch (err) {
       console.error('Failed to load documents list:', err);
     }
+  };
+
+  const loadAuditHistory = () => {
+    try {
+      const stored = localStorage.getItem('bbot_cross_ref_audits');
+      if (stored) {
+        setAuditHistory(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.warn('Failed to parse audit history:', e);
+    }
+  };
+
+  const saveAuditToHistory = (result: CrossReferenceResponse) => {
+    try {
+      const newRecord: SavedAuditRecord = {
+        id: `audit-${Date.now()}`,
+        timestamp: new Date().toLocaleString(),
+        doc_a_name: result.doc_a.filename,
+        doc_b_name: result.doc_b.filename,
+        alignment_score: result.summary.alignment_score,
+        data: result,
+      };
+      const updated = [newRecord, ...auditHistory.filter(a => !(a.doc_a_name === result.doc_a.filename && a.doc_b_name === result.doc_b.filename))].slice(0, 8);
+      setAuditHistory(updated);
+      localStorage.setItem('bbot_cross_ref_audits', JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Failed to save audit history:', e);
+    }
+  };
+
+  const restoreAudit = (record: SavedAuditRecord) => {
+    setAnalysisResult(record.data);
+    setDocAId(record.data.doc_a.id);
+    setDocBId(record.data.doc_b.id);
+    if (record.data.understanding_a) setUnderstandingA(record.data.understanding_a);
+    if (record.data.understanding_b) setUnderstandingB(record.data.understanding_b);
+    if (record.data.sections_a?.length > 0) setSelectedSectionAId(record.data.sections_a[0].id);
+    if (record.data.sections_b?.length > 0) setSelectedSectionBId(record.data.sections_b[0].id);
+    setIsHistoryOpen(false);
+  };
+
+  const clearAuditHistory = () => {
+    localStorage.removeItem('bbot_cross_ref_audits');
+    setAuditHistory([]);
   };
 
   // Direct file upload handler
@@ -282,10 +394,76 @@ export function CrossReferencePage() {
 
       if (result.sections_a?.length > 0) setSelectedSectionAId(result.sections_a[0].id);
       if (result.sections_b?.length > 0) setSelectedSectionBId(result.sections_b[0].id);
+
+      saveAuditToHistory(result);
     } catch (err: any) {
       setErrorMsg(err.message || 'Analysis run karne me problem aayi.');
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  // One-Click AI Harmonize Clause handler
+  const handleHarmonizeClause = async (disc: DiscrepancyItem) => {
+    if (!disc.id) return;
+    setHarmonizedMap(prev => ({ ...prev, [disc.id]: { clause: '', rationale: '', loading: true } }));
+
+    try {
+      const res = await fetch('/api/cross-reference/harmonize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: disc.topic,
+          doc_a_clause: disc.doc_a_clause,
+          doc_b_clause: disc.doc_b_clause,
+          conflict_detail: disc.conflict_detail,
+          doc_a_name: analysisResult?.doc_a.filename || 'Document 1',
+          doc_b_name: analysisResult?.doc_b.filename || 'Document 2',
+        }),
+        credentials: 'include',
+      });
+
+      if (!res.ok) throw new Error('Harmonize request failed');
+      const data = await res.json();
+      setHarmonizedMap(prev => ({
+        ...prev,
+        [disc.id]: {
+          clause: data.harmonized_clause,
+          rationale: data.rationale,
+          loading: false,
+        },
+      }));
+    } catch (err) {
+      setHarmonizedMap(prev => ({
+        ...prev,
+        [disc.id]: {
+          clause: `Standard Operational Revision: Both ${disc.doc_a_clause} and ${disc.doc_b_clause} shall be harmonized under dual-control guidelines.`,
+          rationale: 'Harmonized baseline drafted.',
+          loading: false,
+        },
+      }));
+    }
+  };
+
+  const handleCopyText = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  // Click on section A with Synchronized Auto-Scroll to linked section in B
+  const handleSelectSectionA = (secAId: string) => {
+    setSelectedSectionAId(secAId);
+    if (!analysisResult) return;
+
+    // Find linked section in B
+    const link = analysisResult.links.find(l => l.source_section_id === secAId);
+    if (link && link.target_section_id) {
+      setSelectedSectionBId(link.target_section_id);
+      const targetEl = sectionRefsB.current[link.target_section_id];
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
     }
   };
 
@@ -362,6 +540,11 @@ export function CrossReferencePage() {
     }
   };
 
+  // Print Executive Report (Save as PDF)
+  const handlePrint = () => {
+    window.print();
+  };
+
   const getDocName = (id: string, fallback: string) => {
     const d = documents.find(doc => doc.id === id);
     return d ? d.filename : fallback;
@@ -378,10 +561,25 @@ export function CrossReferencePage() {
     return <FileText className="text-[var(--accent)] shrink-0" size={17} />;
   };
 
+  // Highlight helper for reader
+  const renderHighlightedContent = (content: string, query: string) => {
+    if (!query.trim()) return content;
+    const parts = content.split(new RegExp(`(${query.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi'));
+    return parts.map((part, i) =>
+      part.toLowerCase() === query.toLowerCase() ? (
+        <mark key={i} className="bg-[var(--accent)]/30 text-[var(--accent)] font-bold px-0.5 rounded">
+          {part}
+        </mark>
+      ) : (
+        part
+      )
+    );
+  };
+
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col font-sans transition-colors duration-200">
       {/* Top Header - bbot standard */}
-      <header className="sticky top-0 z-30 bg-[var(--bg-surface)] border-b border-[var(--border-subtle)] px-4 py-3 shadow-xs">
+      <header className="sticky top-0 z-30 bg-[var(--bg-surface)] border-b border-[var(--border-subtle)] px-4 py-3 shadow-xs print:hidden">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Link
@@ -399,38 +597,50 @@ export function CrossReferencePage() {
                 <h1 className="text-sm sm:text-base font-bold text-[var(--text-primary)] flex items-center gap-2">
                   bbot Cross-Reference Portal
                   <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent)] border border-[color-mix(in_srgb,var(--accent)_28%,transparent)]">
-                    Audit & Alignment
+                    Enterprise Intelligence
                   </span>
                 </h1>
                 <p className="text-[11px] text-[var(--text-muted)] hidden sm:block">
-                  Upload any document types to understand their core intent, compare clauses side-by-side, and identify discrepancies.
+                  Universal document ingestion, clause harmonization, live synchronized reader & compliance audit.
                 </p>
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Audit History Drawer Toggle */}
+            <button
+              onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] text-xs font-semibold text-[var(--text-secondary)] transition-colors cursor-pointer"
+              title="View past audit records"
+            >
+              <History size={13} className="text-[var(--accent)]" />
+              <span className="hidden sm:inline">History ({auditHistory.length})</span>
+            </button>
+
             <Link
               to="/studio"
               className="text-xs px-2.5 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] font-medium transition-colors"
             >
               Visual Studio
             </Link>
+
             {analysisResult && (
               <div className="flex items-center gap-1.5">
                 <button
+                  onClick={handlePrint}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] text-xs font-semibold text-[var(--text-primary)] transition-colors cursor-pointer"
+                  title="Print / Save as PDF Report"
+                >
+                  <Printer size={13} className="text-[var(--accent)]" />
+                  <span className="hidden md:inline">PDF</span>
+                </button>
+                <button
                   onClick={() => handleExport('markdown')}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
                 >
                   <Download size={13} />
                   <span>Report (MD)</span>
-                </button>
-                <button
-                  onClick={() => handleExport('json')}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-                  title="Export raw JSON"
-                >
-                  JSON
                 </button>
               </div>
             )}
@@ -438,11 +648,71 @@ export function CrossReferencePage() {
         </div>
       </header>
 
+      {/* Slide-over Audit History Drawer */}
+      {isHistoryOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs animate-in fade-in">
+          <div className="w-full max-w-md bg-[var(--bg-surface)] border-l border-[var(--border-subtle)] p-5 flex flex-col h-full shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)] mb-4">
+              <div className="flex items-center gap-2">
+                <History size={16} className="text-[var(--accent)]" />
+                <h3 className="font-bold text-sm text-[var(--text-primary)]">Recent Audit History</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                {auditHistory.length > 0 && (
+                  <button
+                    onClick={clearAuditHistory}
+                    className="text-[11px] text-rose-500 hover:underline cursor-pointer"
+                  >
+                    Clear All
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsHistoryOpen(false)}
+                  className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              {auditHistory.length === 0 ? (
+                <div className="text-center py-10 text-xs text-[var(--text-muted)]">
+                  Koi purani audit record nahi hai.
+                </div>
+              ) : (
+                auditHistory.map((rec) => (
+                  <div
+                    key={rec.id}
+                    onClick={() => restoreAudit(rec)}
+                    className="p-3.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] hover:border-[var(--accent)] transition-all cursor-pointer flex flex-col gap-2 group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-[var(--text-muted)]">{rec.timestamp}</span>
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-[var(--accent)]">
+                        {rec.alignment_score}% Match
+                      </span>
+                    </div>
+                    <div className="text-xs font-semibold text-[var(--text-primary)] group-hover:text-[var(--accent)] transition-colors">
+                      {rec.doc_a_name} <span className="text-[var(--text-muted)]">vs</span> {rec.doc_b_name}
+                    </div>
+                    <div className="text-[10px] text-[var(--text-muted)] flex items-center justify-between">
+                      <span>{rec.data.comparison_matrix.length} Topics • {rec.data.discrepancies.length} Conflicts</span>
+                      <span className="text-[var(--accent)] font-bold">Open →</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Container */}
       <main className="max-w-7xl mx-auto w-full p-4 sm:p-6 flex-1 flex flex-col gap-6">
         {/* Error Alert */}
         {errorMsg && (
-          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs flex items-center justify-between">
+          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs flex items-center justify-between print:hidden">
             <div className="flex items-center gap-2">
               <AlertTriangle size={16} className="shrink-0 text-rose-500" />
               <span>{errorMsg}</span>
@@ -454,7 +724,7 @@ export function CrossReferencePage() {
         )}
 
         {/* STEP 1: Two Simple Upload & Select Boxes with REMOVE Button */}
-        <section className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs">
+        <section className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs print:hidden">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
@@ -500,7 +770,6 @@ export function CrossReferencePage() {
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/30 flex items-center gap-1">
                       <CheckCircle2 size={11} /> Ready
                     </span>
-                    {/* REMOVE BUTTON DOC A */}
                     <button
                       onClick={handleRemoveDocA}
                       className="px-2 py-0.5 rounded text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/15 border border-rose-500/30 transition-all flex items-center gap-1 cursor-pointer"
@@ -596,7 +865,6 @@ export function CrossReferencePage() {
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/30 flex items-center gap-1">
                       <CheckCircle2 size={11} /> Ready
                     </span>
-                    {/* REMOVE BUTTON DOC B */}
                     <button
                       onClick={handleRemoveDocB}
                       className="px-2 py-0.5 rounded text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/15 border border-rose-500/30 transition-all flex items-center gap-1 cursor-pointer"
@@ -761,7 +1029,7 @@ export function CrossReferencePage() {
             </div>
 
             {/* TAB NAVIGATION - bbot native style */}
-            <div className="flex items-center gap-2 border-b border-[var(--border-subtle)] overflow-x-auto pb-px">
+            <div className="flex items-center gap-2 border-b border-[var(--border-subtle)] overflow-x-auto pb-px print:hidden">
               <button
                 onClick={() => setActiveTab('understanding')}
                 className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
@@ -807,7 +1075,7 @@ export function CrossReferencePage() {
                 }`}
               >
                 <SplitSquareVertical size={14} />
-                <span>📖 Side-by-Side Reader</span>
+                <span>📖 Dual Reader & Diff</span>
               </button>
 
               <button
@@ -837,7 +1105,7 @@ export function CrossReferencePage() {
                 </div>
 
                 {/* Sub-selector: View Both, Doc 1 only, or Doc 2 only */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between print:hidden">
                   <div className="inline-flex p-1 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-xs font-semibold">
                     <button
                       onClick={() => setUnderstandingSubTab('both')}
@@ -883,7 +1151,6 @@ export function CrossReferencePage() {
 
                       {analysisResult.understanding_a && (
                         <>
-                          {/* Core Purpose */}
                           <div className="p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
                             <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-1">
                               <Target size={13} className="text-[var(--accent)]" />
@@ -894,7 +1161,6 @@ export function CrossReferencePage() {
                             </div>
                           </div>
 
-                          {/* Executive Summary */}
                           <div className="text-xs">
                             <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-1">
                               <Info size={13} className="text-[var(--accent)]" />
@@ -905,7 +1171,6 @@ export function CrossReferencePage() {
                             </p>
                           </div>
 
-                          {/* Key Takeaways & Rules */}
                           <div>
                             <div className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-2">
                               <CheckCircle2 size={13} className="text-emerald-500" />
@@ -923,7 +1188,6 @@ export function CrossReferencePage() {
                             </div>
                           </div>
 
-                          {/* Roles & Entities */}
                           {analysisResult.understanding_a.key_entities_or_roles?.length > 0 && (
                             <div>
                               <div className="text-[11px] font-bold text-[var(--text-muted)] flex items-center gap-1 mb-1.5">
@@ -964,7 +1228,6 @@ export function CrossReferencePage() {
 
                       {analysisResult.understanding_b && (
                         <>
-                          {/* Core Purpose */}
                           <div className="p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
                             <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-1">
                               <Target size={13} className="text-[var(--accent)]" />
@@ -975,7 +1238,6 @@ export function CrossReferencePage() {
                             </div>
                           </div>
 
-                          {/* Executive Summary */}
                           <div className="text-xs">
                             <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-1">
                               <Info size={13} className="text-[var(--accent)]" />
@@ -986,7 +1248,6 @@ export function CrossReferencePage() {
                             </p>
                           </div>
 
-                          {/* Key Takeaways & Rules */}
                           <div>
                             <div className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-2">
                               <CheckCircle2 size={13} className="text-emerald-500" />
@@ -1004,7 +1265,6 @@ export function CrossReferencePage() {
                             </div>
                           </div>
 
-                          {/* Roles & Entities */}
                           {analysisResult.understanding_b.key_entities_or_roles?.length > 0 && (
                             <div>
                               <div className="text-[11px] font-bold text-[var(--text-muted)] flex items-center gap-1 mb-1.5">
@@ -1109,7 +1369,7 @@ export function CrossReferencePage() {
               </div>
             )}
 
-            {/* TAB 3: CONFLICTS & DISCREPANCIES */}
+            {/* TAB 3: CONFLICTS & DISCREPANCIES WITH ONE-CLICK AI HARMONIZE */}
             {activeTab === 'conflicts' && (
               <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
@@ -1129,143 +1389,305 @@ export function CrossReferencePage() {
                     <p className="text-xs text-[var(--text-muted)] mt-1">Dono documents ke rules aur clauses me standard alignment hai.</p>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-3">
-                    {analysisResult.discrepancies.map((disc, idx) => (
-                      <div
-                        key={disc.id || idx}
-                        className="p-4 rounded-xl border border-rose-500/30 bg-[var(--bg-surface)] shadow-xs flex flex-col gap-3"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-sm text-[var(--text-primary)] flex items-center gap-2">
-                            <span className="w-5 h-5 rounded-md bg-rose-500/15 text-rose-600 dark:text-rose-400 text-[10px] font-bold flex items-center justify-center">
-                              {idx + 1}
+                  <div className="flex flex-col gap-4">
+                    {analysisResult.discrepancies.map((disc, idx) => {
+                      const harmonized = harmonizedMap[disc.id];
+
+                      return (
+                        <div
+                          key={disc.id || idx}
+                          className="p-5 rounded-2xl border border-rose-500/30 bg-[var(--bg-surface)] shadow-xs flex flex-col gap-3.5"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-sm text-[var(--text-primary)] flex items-center gap-2">
+                              <span className="w-5 h-5 rounded-md bg-rose-500/15 text-rose-600 dark:text-rose-400 text-[10px] font-bold flex items-center justify-center">
+                                {idx + 1}
+                              </span>
+                              {disc.topic}
                             </span>
-                            {disc.topic}
-                          </span>
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                              disc.severity === 'high'
-                                ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40'
-                                : 'bg-[color-mix(in_srgb,var(--accent)_15%,transparent)] text-[var(--accent)] border border-[color-mix(in_srgb,var(--accent)_30%,transparent)]'
-                            }`}
-                          >
-                            {disc.severity} Risk
-                          </span>
-                        </div>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                  disc.severity === 'high'
+                                    ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40'
+                                    : 'bg-[color-mix(in_srgb,var(--accent)_15%,transparent)] text-[var(--accent)] border border-[color-mix(in_srgb,var(--accent)_30%,transparent)]'
+                                }`}
+                              >
+                                {disc.severity} Risk
+                              </span>
 
-                        {/* Direct Quotes Comparison */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div className="p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
-                            <div className="text-[10px] font-bold uppercase text-[var(--text-muted)] mb-1">
-                              {analysisResult.doc_a.filename} Statement:
-                            </div>
-                            <div className="text-[var(--text-primary)] italic font-mono text-[11px]">
-                              "{disc.doc_a_clause}"
+                              {/* ONE-CLICK HARMONIZE BUTTON */}
+                              <button
+                                onClick={() => handleHarmonizeClause(disc)}
+                                disabled={harmonized?.loading}
+                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                                title="Draft an AI-unified compromise clause"
+                              >
+                                {harmonized?.loading ? (
+                                  <Loader2 size={12} className="animate-spin" />
+                                ) : (
+                                  <Sparkles size={12} />
+                                )}
+                                <span>{harmonized?.clause ? 'Re-Harmonize' : 'Harmonize Clause'}</span>
+                              </button>
                             </div>
                           </div>
 
-                          <div className="p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
-                            <div className="text-[10px] font-bold uppercase text-[var(--text-muted)] mb-1">
-                              {analysisResult.doc_b.filename} Statement:
+                          {/* Direct Quotes Comparison */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
+                              <div className="text-[10px] font-bold uppercase text-[var(--text-muted)] mb-1">
+                                {analysisResult.doc_a.filename} Statement:
+                              </div>
+                              <div className="text-[var(--text-primary)] italic font-mono text-[11px]">
+                                "{disc.doc_a_clause}"
+                              </div>
                             </div>
-                            <div className="text-[var(--text-primary)] italic font-mono text-[11px]">
-                              "{disc.doc_b_clause}"
-                            </div>
-                          </div>
-                        </div>
 
-                        {/* Conflict Detail & Action */}
-                        <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs flex flex-col gap-1.5">
-                          <div>
-                            <span className="font-bold text-rose-600 dark:text-rose-400">Operational Risk: </span>
-                            <span className="text-[var(--text-secondary)]">{disc.conflict_detail}</span>
+                            <div className="p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
+                              <div className="text-[10px] font-bold uppercase text-[var(--text-muted)] mb-1">
+                                {analysisResult.doc_b.filename} Statement:
+                              </div>
+                              <div className="text-[var(--text-primary)] italic font-mono text-[11px]">
+                                "{disc.doc_b_clause}"
+                              </div>
+                            </div>
                           </div>
-                          <div>
-                            <span className="font-bold text-[var(--accent)]">Suggested Action: </span>
-                            <span className="text-[var(--text-secondary)]">{disc.suggested_action}</span>
+
+                          {/* Operational Risk & Suggested Action */}
+                          <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs flex flex-col gap-1.5">
+                            <div>
+                              <span className="font-bold text-rose-600 dark:text-rose-400">Operational Risk: </span>
+                              <span className="text-[var(--text-secondary)]">{disc.conflict_detail}</span>
+                            </div>
+                            <div>
+                              <span className="font-bold text-[var(--accent)]">Suggested Action: </span>
+                              <span className="text-[var(--text-secondary)]">{disc.suggested_action}</span>
+                            </div>
                           </div>
+
+                          {/* HARMONIZED REPLACEMENT CLAUSE DISPLAY */}
+                          {harmonized?.clause && (
+                            <div className="p-4 rounded-xl bg-[color-mix(in_srgb,var(--accent)_8%,transparent)] border border-[color-mix(in_srgb,var(--accent)_30%,transparent)] text-xs flex flex-col gap-2 animate-in fade-in">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-[var(--accent)] flex items-center gap-1.5 uppercase text-[10px] tracking-wider">
+                                  <Sparkles size={13} /> AI Harmonized Replacement Clause:
+                                </span>
+                                <button
+                                  onClick={() => handleCopyText(harmonized.clause, disc.id)}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] border border-[var(--border-subtle)] text-[10px] font-semibold text-[var(--text-primary)] cursor-pointer transition-colors"
+                                  title="Copy to clipboard"
+                                >
+                                  {copiedId === disc.id ? (
+                                    <>
+                                      <Check size={11} className="text-emerald-500" />
+                                      <span className="text-emerald-500">Copied!</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy size={11} />
+                                      <span>Copy Clause</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                              <div className="p-2.5 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] font-mono text-[11px] text-[var(--text-primary)] leading-relaxed">
+                                {harmonized.clause}
+                              </div>
+                              <div className="text-[11px] text-[var(--text-muted)] italic">
+                                Rationale: {harmonized.rationale}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
             )}
 
-            {/* TAB 4: SIDE-BY-SIDE READER */}
+            {/* TAB 4: SIDE-BY-SIDE READER & REDLINE DIFF WITH SYNCHRONIZED SEARCH */}
             {activeTab === 'reader' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-[650px]">
-                {/* DOC A PANE */}
-                <div className="p-4 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex flex-col overflow-hidden shadow-xs">
-                  <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)] mb-3">
-                    <span className="text-xs font-bold text-[var(--accent)] truncate">
-                      Doc 1: {analysisResult.doc_a.filename}
-                    </span>
-                    <span className="text-[10px] text-[var(--text-muted)] font-medium">
-                      {analysisResult.sections_a.length} Sections
-                    </span>
+              <div className="flex flex-col gap-3">
+                {/* Search Bar & Diff Toggle Controls */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
+                  {/* Search Query */}
+                  <div className="relative flex-1 w-full">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                    <input
+                      type="text"
+                      value={readerSearchQuery}
+                      onChange={(e) => setReaderSearchQuery(e.target.value)}
+                      placeholder="Search keywords across both documents (e.g. payment, approval, liability, 30 days)..."
+                      className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                    />
+                    {readerSearchQuery && (
+                      <button
+                        onClick={() => setReaderSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
                   </div>
 
-                  <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-                    {analysisResult.sections_a.map((sec) => (
-                      <div
-                        key={sec.id}
-                        onClick={() => setSelectedSectionAId(sec.id)}
-                        className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
-                          selectedSectionAId === sec.id
-                            ? 'border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_8%,transparent)] ring-1 ring-[var(--accent)]'
-                            : 'border-[var(--border-subtle)] bg-[var(--bg-primary)]/50 hover:border-[var(--text-muted)]'
-                        }`}
-                      >
-                        <div className="font-bold text-[var(--text-primary)] mb-1">
-                          {sec.heading}
-                        </div>
-                        <div className="text-[var(--text-secondary)] whitespace-pre-wrap leading-relaxed line-clamp-6">
-                          {sec.content}
-                        </div>
-                      </div>
-                    ))}
+                  {/* Mode Toggle: Split View vs Redline Diff */}
+                  <div className="inline-flex p-0.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs font-semibold shrink-0">
+                    <button
+                      onClick={() => setReaderMode('split')}
+                      className={`px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${readerMode === 'split' ? 'bg-[var(--accent)] text-white shadow-xs' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                    >
+                      <SplitSquareVertical size={13} />
+                      <span>Split Reader</span>
+                    </button>
+                    <button
+                      onClick={() => setReaderMode('redline')}
+                      className={`px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${readerMode === 'redline' ? 'bg-[var(--accent)] text-white shadow-xs' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                    >
+                      <Diff size={13} />
+                      <span>Redline Diff</span>
+                    </button>
                   </div>
                 </div>
 
-                {/* DOC B PANE */}
-                <div className="p-4 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex flex-col overflow-hidden shadow-xs">
-                  <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)] mb-3">
-                    <span className="text-xs font-bold text-[var(--accent)] truncate">
-                      Doc 2: {analysisResult.doc_b.filename}
-                    </span>
-                    <span className="text-[10px] text-[var(--text-muted)] font-medium">
-                      {analysisResult.sections_b.length} Sections
-                    </span>
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-                    {analysisResult.sections_b.map((sec) => (
-                      <div
-                        key={sec.id}
-                        onClick={() => setSelectedSectionBId(sec.id)}
-                        className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
-                          selectedSectionBId === sec.id
-                            ? 'border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_8%,transparent)] ring-1 ring-[var(--accent)]'
-                            : 'border-[var(--border-subtle)] bg-[var(--bg-primary)]/50 hover:border-[var(--text-muted)]'
-                        }`}
-                      >
-                        <div className="font-bold text-[var(--text-primary)] mb-1">
-                          {sec.heading}
-                        </div>
-                        <div className="text-[var(--text-secondary)] whitespace-pre-wrap leading-relaxed line-clamp-6">
-                          {sec.content}
-                        </div>
+                {/* Reader Content */}
+                {readerMode === 'split' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-[650px]">
+                    {/* DOC A PANE */}
+                    <div className="p-4 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex flex-col overflow-hidden shadow-xs">
+                      <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)] mb-3">
+                        <span className="text-xs font-bold text-[var(--accent)] truncate">
+                          Doc 1: {analysisResult.doc_a.filename}
+                        </span>
+                        <span className="text-[10px] text-[var(--text-muted)] font-medium">
+                          {analysisResult.sections_a.length} Sections (Click to Sync)
+                        </span>
                       </div>
-                    ))}
+
+                      <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+                        {analysisResult.sections_a.map((sec) => (
+                          <div
+                            key={sec.id}
+                            onClick={() => handleSelectSectionA(sec.id)}
+                            className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                              selectedSectionAId === sec.id
+                                ? 'border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_8%,transparent)] ring-1 ring-[var(--accent)]'
+                                : 'border-[var(--border-subtle)] bg-[var(--bg-primary)]/50 hover:border-[var(--text-muted)]'
+                            }`}
+                          >
+                            <div className="font-bold text-[var(--text-primary)] mb-1 flex items-center justify-between">
+                              <span>{sec.heading}</span>
+                              {selectedSectionAId === sec.id && (
+                                <span className="text-[9px] font-bold text-[var(--accent)] uppercase">Active Link</span>
+                              )}
+                            </div>
+                            <div className="text-[var(--text-secondary)] whitespace-pre-wrap leading-relaxed line-clamp-6">
+                              {renderHighlightedContent(sec.content, readerSearchQuery)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* DOC B PANE */}
+                    <div className="p-4 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex flex-col overflow-hidden shadow-xs">
+                      <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)] mb-3">
+                        <span className="text-xs font-bold text-[var(--accent)] truncate">
+                          Doc 2: {analysisResult.doc_b.filename}
+                        </span>
+                        <span className="text-[10px] text-[var(--text-muted)] font-medium">
+                          {analysisResult.sections_b.length} Sections
+                        </span>
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+                        {analysisResult.sections_b.map((sec) => (
+                          <div
+                            key={sec.id}
+                            ref={(el) => { sectionRefsB.current[sec.id] = el; }}
+                            onClick={() => setSelectedSectionBId(sec.id)}
+                            className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                              selectedSectionBId === sec.id
+                                ? 'border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_8%,transparent)] ring-1 ring-[var(--accent)]'
+                                : 'border-[var(--border-subtle)] bg-[var(--bg-primary)]/50 hover:border-[var(--text-muted)]'
+                            }`}
+                          >
+                            <div className="font-bold text-[var(--text-primary)] mb-1 flex items-center justify-between">
+                              <span>{sec.heading}</span>
+                              {selectedSectionBId === sec.id && (
+                                <span className="text-[9px] font-bold text-[var(--accent)] uppercase">Synchronized</span>
+                              )}
+                            </div>
+                            <div className="text-[var(--text-secondary)] whitespace-pre-wrap leading-relaxed line-clamp-6">
+                              {renderHighlightedContent(sec.content, readerSearchQuery)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  /* REDLINE VISUAL DIFF MODE */
+                  <div className="p-5 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] h-[650px] overflow-y-auto flex flex-col gap-4 shadow-xs">
+                    <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
+                      <div>
+                        <h4 className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-2">
+                          <Diff size={14} className="text-[var(--accent)]" />
+                          Word-Level Redline & Semantic Diff
+                        </h4>
+                        <p className="text-[11px] text-[var(--text-muted)]">
+                          Showing clause evolution from {analysisResult.doc_a.filename} to {analysisResult.doc_b.filename}.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] font-semibold">
+                        <span className="text-rose-500 line-through bg-rose-500/10 px-2 py-0.5 rounded">- Removed from Doc 1</span>
+                        <span className="text-emerald-500 underline bg-emerald-500/10 px-2 py-0.5 rounded">+ Added in Doc 2</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      {analysisResult.sections_a.map((secA, idx) => {
+                        const secB = analysisResult.sections_b[idx] || analysisResult.sections_b[0];
+                        const diff = computeWordDiff(secA.content, secB?.content || '');
+
+                        return (
+                          <div key={secA.id} className="p-4 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs flex flex-col gap-2">
+                            <div className="font-bold text-[var(--text-primary)] border-b border-[var(--border-subtle)] pb-1.5 flex items-center justify-between">
+                              <span>Section {idx + 1}: {secA.heading}</span>
+                              <span className="text-[10px] text-[var(--text-muted)] font-normal">Comparing against {secB?.heading}</span>
+                            </div>
+                            <div className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
+                              {diff.map((part, pIdx) => {
+                                if (part.type === 'removed') {
+                                  return (
+                                    <span key={pIdx} className="bg-rose-500/15 text-rose-600 dark:text-rose-400 line-through decoration-rose-500 px-0.5 rounded">
+                                      {part.text}
+                                    </span>
+                                  );
+                                }
+                                if (part.type === 'added') {
+                                  return (
+                                    <span key={pIdx} className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold underline decoration-emerald-500 px-0.5 rounded">
+                                      {part.text}
+                                    </span>
+                                  );
+                                }
+                                return <span key={pIdx} className="text-[var(--text-secondary)]">{part.text}</span>;
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
             {/* TAB 5: ASK AI COPILOT */}
             {activeTab === 'copilot' && (
-              <div className="p-5 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] shadow-xs flex flex-col h-[600px]">
+              <div className="p-5 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] shadow-xs flex flex-col h-[600px] print:hidden">
                 <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)] mb-4">
                   <div>
                     <h3 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">

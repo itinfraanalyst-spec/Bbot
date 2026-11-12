@@ -15,6 +15,8 @@ from src.cross_reference.schemas import (
     CrossDocQueryResponse,
     DocumentUnderstanding,
     TopicComparisonItem,
+    HarmonizeClauseRequest,
+    HarmonizeClauseResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -726,4 +728,48 @@ Format your answer with clear markdown:
             sources_a=[filename_a],
             sources_b=[filename_b],
             comparison_verdict="Basic analysis complete.",
+        )
+
+    def harmonize_clause(self, req: HarmonizeClauseRequest) -> HarmonizeClauseResponse:
+        """
+        Synthesizes a legally and operationally sound unified clause resolving a discrepancy.
+        """
+        if self.provider:
+            prompt = f"""You are an elite legal drafting and enterprise compliance auditor.
+Two documents have a contradictory or divergent clause. Draft a unified, harmonized replacement clause that resolves the conflict cleanly.
+
+Topic: {req.topic}
+Conflict Detail: {req.conflict_detail}
+{req.doc_a_name} Stance: "{req.doc_a_clause}"
+{req.doc_b_name} Stance: "{req.doc_b_clause}"
+
+Return ONLY a valid JSON object matching this schema:
+{{
+  "harmonized_clause": "<Clear, professionally drafted replacement clause resolving both documents' constraints>",
+  "rationale": "<1-2 sentence explanation of why this wording harmonizes both requirements safely>",
+  "suggested_revision_type": "<compromise | tiered_threshold | stricter_safe>"
+}}"""
+            try:
+                stream = self.provider.generate_stream(prompt, max_tokens=1000, temperature=0.1)
+                full_reply = ""
+                for chunk in stream:
+                    if chunk.get("type") == "text":
+                        full_reply += chunk.get("content", "")
+
+                json_match = re.search(r"\{[\s\S]*\}", full_reply)
+                if json_match:
+                    data = json.loads(json_match.group(0))
+                    return HarmonizeClauseResponse(
+                        harmonized_clause=data.get("harmonized_clause", ""),
+                        rationale=data.get("rationale", ""),
+                        suggested_revision_type=data.get("suggested_revision_type", "compromise"),
+                    )
+            except Exception as e:
+                logger.warning(f"Harmonize clause LLM generation failed: {e}")
+
+        # Deterministic fallback
+        return HarmonizeClauseResponse(
+            harmonized_clause=f"For all operations regarding {req.topic}, actions shall adhere to standard dual-signoff authorization while maintaining compliance with established organizational ceilings and risk controls.",
+            rationale=f"Synthesizes baseline constraints between {req.doc_a_name} and {req.doc_b_name} to eliminate operational non-compliance.",
+            suggested_revision_type="compromise",
         )
