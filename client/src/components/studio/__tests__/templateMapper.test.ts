@@ -246,4 +246,79 @@ describe('templateMapper - Cross-Dataset Template Reuse', () => {
     expect(scaledDown.nodes[0].id).toBe('node_step_1');
     expect(scaledDown.nodes[1].id).toBe('node_step_2');
   });
+
+  it('scaleTemplateToStepCount preserves user data when sourceData is provided', () => {
+    const template: DiagramSpec = {
+      diagramType: 'process_flow',
+      title: 'Shared Template Design',
+      nodes: [
+        { id: 't1', label: 'Tpl Stage 1', customStyle: { shape: 'terminal', borderColor: '#06b6d4' } },
+        { id: 't2', label: 'Tpl Stage 2', customStyle: { shape: 'cylinder', borderColor: '#8b5cf6' } },
+      ],
+      edges: [{ id: 'te1', source: 't1', target: 't2' }],
+    };
+
+    const userData: DiagramSpec = {
+      diagramType: 'process_flow',
+      title: 'User Actual Data',
+      nodes: [
+        { id: 'u1', label: 'Order Placed', sublabel: '$150 purchase', badge: 'Order#1' },
+        { id: 'u2', label: 'Payment Deducted', sublabel: 'Credit card authorized', badge: 'Paid' },
+      ],
+      edges: [{ id: 'ue1', source: 'u1', target: 'u2' }],
+    };
+
+    const scaledWithUserData = scaleTemplateToStepCount(template, 3, userData);
+    expect(scaledWithUserData.nodes).toHaveLength(3);
+    // 1st and 2nd keep user data but take template design
+    expect(scaledWithUserData.nodes[0].label).toBe('Order Placed');
+    expect(scaledWithUserData.nodes[0].sublabel).toBe('$150 purchase');
+    expect(scaledWithUserData.nodes[0].badge).toBe('Order#1');
+    expect(scaledWithUserData.nodes[0].customStyle?.shape).toBe('terminal');
+    expect(scaledWithUserData.nodes[0].customStyle?.borderColor).toBe('#06b6d4');
+
+    expect(scaledWithUserData.nodes[1].label).toBe('Payment Deducted');
+    expect(scaledWithUserData.nodes[1].customStyle?.shape).toBe('cylinder');
+
+    // 3rd node continues with clean step continuation
+    expect(scaledWithUserData.nodes[2].label).toBe('Phase 3: Step');
+  });
+
+  it('applyTemplateToDataset creates sequential connectors when source edges are missing', () => {
+    const template: DiagramSpec = {
+      diagramType: 'process_flow',
+      title: 'Flow Template',
+      nodes: [
+        { id: 't1', label: 'Tpl 1', customStyle: { shape: 'card', borderColor: '#06b6d4' } },
+        { id: 't2', label: 'Tpl 2', customStyle: { shape: 'card', borderColor: '#8b5cf6' } },
+      ],
+      edges: [
+        { id: 'te1', source: 't1', target: 't2', customStyle: { routing: 'orthogonal', color: '#06b6d4' } },
+      ],
+    };
+
+    const rawUserDataset: DiagramSpec = {
+      diagramType: 'process_flow',
+      title: 'My Steps',
+      nodes: [
+        { id: 'step_a', label: 'Step A: Init' },
+        { id: 'step_b', label: 'Step B: Process' },
+        { id: 'step_c', label: 'Step C: Finish' },
+      ],
+      edges: [],
+    };
+
+    const adapted = applyTemplateToDataset(template, rawUserDataset);
+    expect(adapted.nodes).toHaveLength(3);
+    expect(adapted.nodes[0].label).toBe('Step A: Init');
+    expect(adapted.nodes[1].label).toBe('Step B: Process');
+    expect(adapted.nodes[2].label).toBe('Step C: Finish');
+    // Connectors automatically generated between the user's nodes
+    expect(adapted.edges).toHaveLength(2);
+    expect(adapted.edges[0].source).toBe('step_a');
+    expect(adapted.edges[0].target).toBe('step_b');
+    expect(adapted.edges[1].source).toBe('step_b');
+    expect(adapted.edges[1].target).toBe('step_c');
+    expect(adapted.edges[0].customStyle?.routing).toBe('orthogonal');
+  });
 });

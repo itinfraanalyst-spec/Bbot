@@ -197,12 +197,14 @@ export function applyTemplateToDataset(
     return {
       ...node,
       type: tplNode.type || node.type,
-      width: tplNode.width,
-      height: tplNode.height,
+      width: tplNode.width || 230,
+      height: tplNode.height || 110,
       x: posX,
       y: posY,
+      color: tplNode.color || node.color,
       ...(resolvedShape ? { shape: resolvedShape } : {}),
       customStyle: {
+        ...(node.customStyle || {}),
         ...(tplNode.customStyle || {}),
         ...(resolvedShape ? { shape: resolvedShape } : {}),
       },
@@ -216,9 +218,10 @@ export function applyTemplateToDataset(
     strokeWidth: 2,
     strokeStyle: 'solid',
     arrowMarker: 'arrow',
+    color: '#06b6d4',
   };
 
-  const adaptedEdges: EdgeSpec[] = (currentDiagram.edges || []).map((edge, idx) => {
+  let adaptedEdges: EdgeSpec[] = (currentDiagram.edges || []).map((edge, idx) => {
     const tplEdge = tplEdges[idx] || tplEdges[idx % Math.max(1, tplEdges.length)] || {};
     const routing = (tplEdge as any).routing || tplEdge.customStyle?.routing;
     const animated = (tplEdge as any).animated !== undefined ? (tplEdge as any).animated : tplEdge.customStyle?.animated;
@@ -237,13 +240,36 @@ export function applyTemplateToDataset(
     };
   });
 
+  // If current diagram had no edges, generate sequential connectors connecting mapped nodes
+  if (adaptedEdges.length === 0 && mappedNodes.length > 1) {
+    adaptedEdges = [];
+    for (let i = 0; i < mappedNodes.length - 1; i++) {
+      const src = mappedNodes[i];
+      const tgt = mappedNodes[i + 1];
+      const tplEdge = tplEdges[i] || tplEdges[i % Math.max(1, tplEdges.length)] || {};
+      adaptedEdges.push({
+        id: `e_${src.id}_${tgt.id}`,
+        source: src.id,
+        target: tgt.id,
+        label: tplEdge.label || 'Next',
+        style: tplEdge.style || 'solid',
+        customStyle: {
+          ...(defaultEdgeStyle as any),
+          ...(tplEdge.customStyle || {}),
+          routing: (tplEdge as any).routing || tplEdge.customStyle?.routing || 'curved',
+          color: src.customStyle?.borderColor || tplEdge.customStyle?.color || (defaultEdgeStyle as any).color,
+        },
+      });
+    }
+  }
+
   return {
     ...currentDiagram,
     diagramType: templateDiagram.diagramType || currentDiagram.diagramType,
     theme: templateDiagram.theme || currentDiagram.theme,
     canvasLayout: templateDiagram.canvasLayout || currentDiagram.canvasLayout,
     nodes: mappedNodes,
-    edges: adaptedEdges.length > 0 ? adaptedEdges : templateDiagram.edges,
+    edges: adaptedEdges,
   };
 }
 
@@ -414,11 +440,14 @@ export function sanitizeDiagramBlueprint(
  */
 export function scaleTemplateToStepCount(
   template: DiagramSpec,
-  targetCount: number
+  targetCount: number,
+  sourceData?: DiagramSpec
 ): DiagramSpec {
   const cloned: DiagramSpec = JSON.parse(JSON.stringify(template));
   const tplNodes = cloned.nodes || [];
   if (tplNodes.length === 0 || targetCount <= 0) return cloned;
+
+  const srcNodes = sourceData?.nodes || [];
 
   // Calculate trajectory delta
   let dx = 290;
@@ -434,12 +463,16 @@ export function scaleTemplateToStepCount(
 
   const newNodes: NodeSpec[] = [];
   for (let i = 0; i < targetCount; i++) {
+    const srcNode = srcNodes[i];
     if (i < tplNodes.length) {
       newNodes.push({
         ...tplNodes[i],
-        id: `node_step_${i + 1}`,
+        id: srcNode?.id || `node_step_${i + 1}`,
         order: i + 1,
-        label: tplNodes[i].label || `Phase ${i + 1}: Step`,
+        label: srcNode?.label || tplNodes[i].label || `Phase ${i + 1}: Step`,
+        sublabel: srcNode?.sublabel || tplNodes[i].sublabel,
+        badge: srcNode?.badge || tplNodes[i].badge || String(i + 1).padStart(2, '0'),
+        icon: srcNode?.icon || tplNodes[i].icon || 'Layers',
       });
     } else {
       // Replicate the styling archetype of earlier nodes
@@ -449,13 +482,13 @@ export function scaleTemplateToStepCount(
       const posY = (lastNode.y ?? 200) + dy;
 
       newNodes.push({
-        id: `node_step_${i + 1}`,
+        id: srcNode?.id || `node_step_${i + 1}`,
         type: archetype.type || 'process',
-        label: `Phase ${i + 1}: Step`,
-        sublabel: 'Operational step or task details',
-        badge: String(i + 1).padStart(2, '0'),
+        label: srcNode?.label || `Phase ${i + 1}: Step`,
+        sublabel: srcNode?.sublabel || 'Operational step or task details',
+        badge: srcNode?.badge || String(i + 1).padStart(2, '0'),
         order: i + 1,
-        icon: archetype.icon || 'Layers',
+        icon: srcNode?.icon || archetype.icon || 'Layers',
         x: posX,
         y: posY,
         width: archetype.width || 230,

@@ -45,12 +45,14 @@ import {
   GitCompare,
   Shield,
   Users,
+  Database,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { AuthContext } from '../contexts/AuthContext';
 import { DiagramCanvas, type DiagramCanvasRef } from '../components/studio/DiagramCanvas';
 import { useTheme } from '../contexts/ThemeContext';
 import { applyTemplateToDataset, scaleTemplateToStepCount, sanitizeDiagramBlueprint } from '../components/studio/templateMapper';
+import { MapDatasetModal } from '../components/studio/MapDatasetModal';
 import type { DiagramSpec, RecommendationResponse, VisualTypeInfo } from '../components/studio/types';
 
 const STUDIO_STORAGE_KEY = 'bbot_visual_studio_state';
@@ -260,6 +262,7 @@ export function VisualStudioPage() {
     created_by_name?: string;
   }[]>([]);
   const [isProjectsModalOpen, setIsProjectsModalOpen] = useState(false);
+  const [mapDatasetTarget, setMapDatasetTarget] = useState<{ diagram: DiagramSpec; name: string } | null>(null);
   const [isSavingProgressTop, setIsSavingProgressTop] = useState(false);
   const [saveProgressToastTop, setSaveProgressToastTop] = useState<string | null>(null);
 
@@ -401,34 +404,63 @@ export function VisualStudioPage() {
 
   const handleAdaptTemplateToActiveCanvas = (item: any) => {
     if (!item.diagram) return;
+    const sanitizedTpl = sanitizeDiagramBlueprint(item.diagram, item.name);
+
+    // Case 1: Canvas has active nodes -> Adapt canvas data into this template design!
     if (diagram && diagram.nodes && diagram.nodes.length > 0) {
-      const adapted = applyTemplateToDataset(item.diagram, diagram);
+      const adapted = applyTemplateToDataset(sanitizedTpl, diagram);
       setDiagram(adapted);
+      if (adapted.diagramType) {
+        setSelectedType(adapted.diagramType);
+      }
       setHasUnsavedEdits(true);
       setIsProjectsModalOpen(false);
       setExportNotice({
         type: 'success',
-        message: `✨ "Adapt Design" applied "${item.name}" styling to your canvas!`,
+        message: `✨ "Adapt Design" applied "${item.name}" layout & styling to your canvas data!`,
       });
       setTimeout(() => setExportNotice(null), 4000);
-    } else {
-      handleApplyCommunityDesign(item);
+      return;
     }
+
+    // Case 2: Prompt or uploaded doc is present -> Generate visual from user's data into this design!
+    if (prompt.trim() || uploadedDoc) {
+      setSelectedTemplateBlueprintId(item.id);
+      setIsProjectsModalOpen(false);
+      performGenerate();
+      setExportNotice({
+        type: 'success',
+        message: `✨ Generating visual from your prompt in "${item.name}" design!`,
+      });
+      setTimeout(() => setExportNotice(null), 4000);
+      return;
+    }
+
+    // Case 3: Canvas & prompt are empty -> Open Map Dataset modal so user can paste their steps/data!
+    setIsProjectsModalOpen(false);
+    setSelectedTemplateBlueprintId(item.id);
+    setMapDatasetTarget({
+      diagram: sanitizedTpl,
+      name: item.name,
+    });
   };
 
   const handleScaleAndApplyTemplate = (item: any, count: number) => {
     if (!item.diagram) return;
     const sanitized = sanitizeDiagramBlueprint(item.diagram, item.name);
-    const scaled = scaleTemplateToStepCount(sanitized, count);
+    const sourceDiagram = (diagram && diagram.nodes && diagram.nodes.length > 0) ? diagram : undefined;
+    const scaled = scaleTemplateToStepCount(sanitized, count, sourceDiagram);
     setDiagram(scaled);
     if (scaled.diagramType) {
       setSelectedType(scaled.diagramType);
     }
-    setHasUnsavedEdits(false);
+    setHasUnsavedEdits(true);
     setIsProjectsModalOpen(false);
     setExportNotice({
       type: 'success',
-      message: `🎯 "Adapt Design" scaled "${item.name}" to exact ${count} stages!`,
+      message: sourceDiagram
+        ? `🎯 "Adapt Design" scaled "${item.name}" to exact ${count} stages with your data!`
+        : `🎯 "Adapt Design" scaled "${item.name}" to exact ${count} stages!`,
     });
     setTimeout(() => setExportNotice(null), 4000);
   };
@@ -2395,10 +2427,26 @@ export function VisualStudioPage() {
                               type="button"
                               onClick={() => handleAdaptTemplateToActiveCanvas(proj)}
                               className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:brightness-110 text-white font-bold text-xs shadow-md shadow-cyan-500/20 transition-all cursor-pointer active:scale-[0.98]"
-                              title="Adapt this visual design onto your canvas (strictly keeps your data, zero data from other user copied)"
+                              title="Adapt this visual design onto your canvas data (strictly keeps your data, zero data from other user copied)"
                             >
                               <Zap size={13} className="text-cyan-100" />
                               <span>Adapt Design</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsProjectsModalOpen(false);
+                                setMapDatasetTarget({
+                                  diagram: sanitizeDiagramBlueprint(proj.diagram, proj.name),
+                                  name: proj.name,
+                                });
+                              }}
+                              className="inline-flex items-center justify-center gap-1 py-2 px-2.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 font-semibold text-[11px] transition-colors cursor-pointer"
+                              title="Paste or enter custom steps / dataset to render in this design"
+                            >
+                              <Database size={12} />
+                              <span>Map Data</span>
                             </button>
 
                             <button
@@ -2435,6 +2483,29 @@ export function VisualStudioPage() {
             </div>
           </div>
         </div>
+      )}
+      {/* Map Dataset Modal for Community Templates */}
+      {mapDatasetTarget && (
+        <MapDatasetModal
+          isOpen={!!mapDatasetTarget}
+          onClose={() => setMapDatasetTarget(null)}
+          template={mapDatasetTarget.diagram}
+          templateName={mapDatasetTarget.name}
+          currentDiagram={diagram || undefined}
+          onApply={(mappedDiagram) => {
+            setDiagram(mappedDiagram);
+            if (mappedDiagram.diagramType) {
+              setSelectedType(mappedDiagram.diagramType);
+            }
+            setHasUnsavedEdits(true);
+            setMapDatasetTarget(null);
+            setExportNotice({
+              type: 'success',
+              message: `🎨 Your data is now rendered in "${mapDatasetTarget.name}" design!`,
+            });
+            setTimeout(() => setExportNotice(null), 4000);
+          }}
+        />
       )}
     </div>
   );
