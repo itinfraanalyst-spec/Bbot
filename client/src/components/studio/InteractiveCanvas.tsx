@@ -1045,6 +1045,7 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
         setSelectedNodeId(null);
         setSelectedNodeIds([]);
         setSelectedEdgeId(null);
+        setConnectSourceId(null);
         setActiveGuides([]);
         setIsMarqueeSelecting(false);
         setMarqueeBox(null);
@@ -2661,14 +2662,21 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
 
       {/* Connect Mode Banner */}
       {!isExporting && connectSourceId && (
-        <div data-interactive="true" className="absolute top-16 left-1/2 -translate-x-1/2 z-30 pointer-events-auto flex items-center gap-3 px-4 py-1.5 rounded-full bg-cyan-950/90 border border-cyan-500/60 text-cyan-300 text-xs shadow-2xl backdrop-blur-md animate-bounce">
-          <Link2 size={13} className="text-cyan-400" />
-          <span>Click any destination box to connect</span>
+        <div data-interactive="true" className="absolute top-16 left-1/2 -translate-x-1/2 z-30 pointer-events-auto flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-cyan-950/95 border border-cyan-400/80 text-cyan-200 text-xs shadow-2xl backdrop-blur-md animate-bounce">
+          <Zap size={13} className="text-cyan-400 shrink-0" />
+          <span className="font-medium">
+            {(() => {
+              const srcNode = diagram.nodes.find((n) => n.id === connectSourceId);
+              const label = srcNode?.label?.replace(/<[^>]*>/g, '').trim().slice(0, 24);
+              return label ? `Connecting from "${label}" → Click target box` : 'Click any destination box to connect';
+            })()}
+          </span>
+          <span className="text-[0.65rem] text-cyan-400/70 border border-cyan-500/30 rounded px-1 py-0.2">Esc to cancel</span>
           <button
             type="button"
             onClick={() => setConnectSourceId(null)}
-            className="p-0.5 rounded hover:bg-cyan-800/40 text-cyan-300"
-            title="Cancel"
+            className="p-0.5 rounded hover:bg-cyan-800/40 text-cyan-300 ml-0.5 cursor-pointer"
+            title="Cancel Connection (Esc)"
           >
             <X size={12} />
           </button>
@@ -3052,6 +3060,7 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
           {nodesWithPositions.map((node) => {
             const isSelected = !isExporting && (selectedNodeId === node.id || selectedNodeIds.includes(node.id));
             const isSourceConnect = !isExporting && connectSourceId === node.id;
+            const isConnectTarget = !isExporting && connectSourceId !== null && connectSourceId !== node.id;
             const rawShape = (node.customStyle?.shape || 'card') as string;
             const shape: NodeShape =
               rawShape === 'sharp'
@@ -3276,6 +3285,48 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                       </button>
                     </div>
 
+                    {/* 1-Click Direct Connect Dropdown */}
+                    {diagram.nodes.filter((n) => n.id !== node.id).length > 0 && (
+                      <div className="flex items-center gap-1 border-r border-[var(--border-subtle)] pr-1 pl-0.5">
+                        <Zap size={11} className="text-cyan-400 shrink-0" />
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              handleCreateEdge(node.id, e.target.value);
+                              e.target.value = '';
+                            }
+                          }}
+                          className="bg-[var(--bg-primary)] text-[var(--text-primary)] border border-[var(--border-subtle)] hover:border-cyan-400 rounded px-1.5 py-0.5 text-[0.68rem] focus:outline-none cursor-pointer max-w-[125px] truncate transition-colors"
+                          title="1-Click Direct Connect To Another Box"
+                        >
+                          <option value="" disabled>Connect To... ▾</option>
+                          {diagram.nodes
+                            .filter((n) => n.id !== node.id)
+                            .map((n) => (
+                              <option key={n.id} value={n.id}>
+                                → {n.label?.replace(/<[^>]*>/g, '').trim().slice(0, 24) || n.id}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Link 2 Selected Boxes Button */}
+                    {selectedNodeIds.length === 2 && selectedNodeIds.includes(node.id) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const otherId = selectedNodeIds.find((id) => id !== node.id);
+                          if (otherId) handleCreateEdge(node.id, otherId);
+                        }}
+                        className="flex items-center gap-1 px-2 py-0.5 rounded text-[0.68rem] font-bold bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 border border-cyan-500/40 transition-colors cursor-pointer"
+                        title="Link the 2 selected boxes immediately"
+                      >
+                        <Zap size={10} /> Link 2 Boxes
+                      </button>
+                    )}
+
                     {/* Edit Inspector Focus */}
                     <button
                       type="button"
@@ -3318,6 +3369,8 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                       ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-[var(--bg-primary)] shadow-2xl scale-[1.01]'
                       : isSourceConnect
                       ? 'ring-2 ring-cyan-400 ring-offset-2 ring-offset-[var(--bg-primary)] shadow-xl animate-pulse'
+                      : isConnectTarget
+                      ? 'ring-2 ring-emerald-400 ring-offset-2 ring-offset-[var(--bg-primary)] shadow-xl shadow-emerald-500/25 animate-pulse cursor-pointer hover:scale-[1.02]'
                       : 'hover:shadow-lg'
                   }`}
                   style={{
@@ -3347,6 +3400,16 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                     backdropFilter: shape === 'glass' ? 'blur(12px)' : undefined,
                   }}
                 >
+                  {/* Connect Target Overlay Badge */}
+                  {isConnectTarget && !readOnly && !isExporting && (
+                    <div className="absolute inset-0 z-40 bg-emerald-950/25 backdrop-blur-[0.5px] rounded-[inherit] flex items-center justify-center pointer-events-none transition-all">
+                      <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-600 text-white text-[0.72rem] font-bold shadow-lg border border-emerald-400 animate-pulse tracking-wide select-none">
+                        <Zap size={11} className="text-white" />
+                        Click to Connect
+                      </span>
+                    </div>
+                  )}
+
                   {/* Dedicated Pen Edit Button on Every Box (Appears on Hover Only, Excluded on Export) */}
                   {!readOnly && !isExporting && (
                     <button
@@ -3836,9 +3899,10 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                   )}
                 </div>
 
-                {/* Connection Handles (4 cardinal anchor points) */}
+                {/* Connection Handles (4 cardinal anchor points: Top, Right, Bottom, Left) */}
                 {!readOnly && !isExporting && (
                   <>
+                    {/* Top Anchor Handle */}
                     <button
                       type="button"
                       data-interactive="true"
@@ -3846,11 +3910,31 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                         e.stopPropagation();
                         setConnectSourceId(node.id);
                       }}
-                      className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-cyan-500 border-2 border-white dark:border-black opacity-0 group-hover:opacity-100 hover:opacity-100 hover:scale-125 transition-all shadow-md flex items-center justify-center cursor-crosshair z-30"
+                      className={`absolute -top-2.5 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-cyan-500 hover:bg-cyan-400 border-2 border-white dark:border-slate-900 ${
+                        isSelected ? 'opacity-100 scale-100 shadow-md shadow-cyan-500/50 ring-2 ring-cyan-400/40' : 'opacity-0 group-hover:opacity-100'
+                      } hover:opacity-100 hover:scale-125 transition-all shadow-md flex items-center justify-center cursor-crosshair z-30`}
+                      title="Connect from Top"
+                    >
+                      <Plus size={10} className="text-white" strokeWidth={3} />
+                    </button>
+
+                    {/* Right Anchor Handle */}
+                    <button
+                      type="button"
+                      data-interactive="true"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConnectSourceId(node.id);
+                      }}
+                      className={`absolute -right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-cyan-500 hover:bg-cyan-400 border-2 border-white dark:border-slate-900 ${
+                        isSelected ? 'opacity-100 scale-100 shadow-md shadow-cyan-500/50 ring-2 ring-cyan-400/40' : 'opacity-0 group-hover:opacity-100'
+                      } hover:opacity-100 hover:scale-125 transition-all shadow-md flex items-center justify-center cursor-crosshair z-30`}
                       title="Connect from Right"
                     >
-                      <Plus size={8} className="text-white" />
+                      <Plus size={10} className="text-white" strokeWidth={3} />
                     </button>
+
+                    {/* Bottom Anchor Handle */}
                     <button
                       type="button"
                       data-interactive="true"
@@ -3858,22 +3942,28 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                         e.stopPropagation();
                         setConnectSourceId(node.id);
                       }}
-                      className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-cyan-500 border-2 border-white dark:border-black opacity-0 group-hover:opacity-100 hover:opacity-100 hover:scale-125 transition-all shadow-md flex items-center justify-center cursor-crosshair z-30"
-                      title="Connect from Left"
-                    >
-                      <Plus size={8} className="text-white" />
-                    </button>
-                    <button
-                      type="button"
-                      data-interactive="true"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setConnectSourceId(node.id);
-                      }}
-                      className="absolute left-1/2 -bottom-2 -translate-x-1/2 w-4 h-4 rounded-full bg-cyan-500 border-2 border-white dark:border-black opacity-0 group-hover:opacity-100 hover:opacity-100 hover:scale-125 transition-all shadow-md flex items-center justify-center cursor-crosshair z-30"
+                      className={`absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-cyan-500 hover:bg-cyan-400 border-2 border-white dark:border-slate-900 ${
+                        isSelected ? 'opacity-100 scale-100 shadow-md shadow-cyan-500/50 ring-2 ring-cyan-400/40' : 'opacity-0 group-hover:opacity-100'
+                      } hover:opacity-100 hover:scale-125 transition-all shadow-md flex items-center justify-center cursor-crosshair z-30`}
                       title="Connect from Bottom"
                     >
-                      <Plus size={8} className="text-white" />
+                      <Plus size={10} className="text-white" strokeWidth={3} />
+                    </button>
+
+                    {/* Left Anchor Handle */}
+                    <button
+                      type="button"
+                      data-interactive="true"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConnectSourceId(node.id);
+                      }}
+                      className={`absolute -left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-cyan-500 hover:bg-cyan-400 border-2 border-white dark:border-slate-900 ${
+                        isSelected ? 'opacity-100 scale-100 shadow-md shadow-cyan-500/50 ring-2 ring-cyan-400/40' : 'opacity-0 group-hover:opacity-100'
+                      } hover:opacity-100 hover:scale-125 transition-all shadow-md flex items-center justify-center cursor-crosshair z-30`}
+                      title="Connect from Left"
+                    >
+                      <Plus size={10} className="text-white" strokeWidth={3} />
                     </button>
                   </>
                 )}
@@ -4723,32 +4813,62 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
               </div>
             </div>
 
-            {/* Quick Actions */}
-            <div className="pt-2 border-t border-[var(--border-subtle)] flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={() => setConnectSourceId(selectedNode.id)}
-                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[0.7rem] font-bold hover:bg-cyan-500/30 transition-colors"
-              >
-                <Link2 size={12} />
-                <span>Connect To</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDuplicateNode(selectedNode.id)}
-                className="p-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]"
-                title="Duplicate Box"
-              >
-                <Copy size={13} />
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDeleteNode(selectedNode.id)}
-                className="p-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20"
-                title="Delete Box"
-              >
-                <Trash2 size={13} />
-              </button>
+            {/* Quick Actions & 1-Click Connect */}
+            <div className="pt-2 border-t border-[var(--border-subtle)] space-y-2">
+              {diagram.nodes.filter((n) => n.id !== selectedNode.id).length > 0 && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-[0.65rem] font-bold text-[var(--text-muted)] uppercase tracking-wider flex items-center gap-1">
+                    <Zap size={11} className="text-cyan-400" /> 1-Click Direct Connect:
+                  </label>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        handleCreateEdge(selectedNode.id, e.target.value);
+                        e.target.value = '';
+                      }
+                    }}
+                    className="w-full bg-[var(--bg-primary)] text-[var(--text-primary)] border border-[var(--border-subtle)] hover:border-cyan-400 rounded-md px-2 py-1.5 text-xs focus:outline-none cursor-pointer truncate transition-colors"
+                  >
+                    <option value="" disabled>Select target box... ▾</option>
+                    {diagram.nodes
+                      .filter((n) => n.id !== selectedNode.id)
+                      .map((n) => (
+                        <option key={n.id} value={n.id}>
+                          → {n.label?.replace(/<[^>]*>/g, '').trim().slice(0, 32) || n.id}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConnectSourceId(selectedNode.id)}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[0.7rem] font-bold hover:bg-cyan-500/30 transition-colors"
+                  title="Click here, then click any box on canvas to connect"
+                >
+                  <Link2 size={12} />
+                  <span>🎯 Pick Target on Canvas</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDuplicateNode(selectedNode.id)}
+                  className="p-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]"
+                  title="Duplicate Box"
+                >
+                  <Copy size={13} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteNode(selectedNode.id)}
+                  className="p-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20"
+                  title="Delete Box"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
             </div>
           </div>
         </div>

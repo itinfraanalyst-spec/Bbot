@@ -84,14 +84,14 @@ const SUGGESTIONS_BY_LANG: Record<string, {
     general: (ctx: string) => [`"${ctx}" को और विस्तार से समझाइए`, `"${ctx}" के लिए अगला कदम क्या है?`],
   },
   hinglish: {
-    summary: ['Action items extract karein', 'Supporting sections dikhayein'],
-    compare: ['Main differences batayein', 'Possible conflicts check karein'],
-    policy: ['Exceptions aur limitations batayein', 'Next steps list karein'],
-    date: ['Related dates find karein', 'Source sections check karein'],
-    steps: ['Ise steps me break karein', 'Common mistakes batayein'],
-    decision: ['Trade-offs explain karein', 'Next step recommend karein'],
-    explain: ['Ise aur simple karke samjhayein', 'Deep me explain karein'],
-    general: (ctx: string) => [`"${ctx}" ko aur detail me samjhayein`, `"${ctx}" ke liye next practical step kya hai?`],
+    summary: ['Extract key action items', 'Show supporting sections'],
+    compare: ['Show main differences', 'Check possible conflicts'],
+    policy: ['Explain exceptions and limitations', 'List next steps'],
+    date: ['Find related dates', 'Check source sections'],
+    steps: ['Break down into steps', 'Highlight common mistakes'],
+    decision: ['Explain trade-offs', 'Recommend next steps'],
+    explain: ['Explain in simpler terms', 'Explain in deeper detail'],
+    general: (ctx: string) => [`Explain "${ctx}" in more detail`, `What is the next practical step for "${ctx}"?`],
   },
 };
 
