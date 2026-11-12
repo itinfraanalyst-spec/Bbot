@@ -265,6 +265,14 @@ export function VisualStudioPage() {
 
   const fetchWorkspaceProjects = async () => {
     try {
+      const raw = localStorage.getItem('bbot_user_templates');
+      let localItems: any[] = [];
+      if (raw) {
+        try {
+          localItems = JSON.parse(raw);
+        } catch { }
+      }
+
       const res = await fetch('/api/visual-studio/templates', { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
@@ -277,18 +285,38 @@ export function VisualStudioPage() {
               createdAt: d.created_at ? new Date(d.created_at).toLocaleDateString() : undefined,
               nodeCount: d.node_count || d.diagram?.nodes?.length || 0,
               diagram: d.diagram,
-              is_public: Boolean(d.is_public),
+              is_public: Boolean(d.is_public ?? (d.diagram?.is_public || false)),
               created_by: d.created_by,
               created_by_name: d.created_by_name,
             }));
             const map = new Map<string, any>();
             serverItems.forEach((it: any) => map.set(it.id, it));
+            if (Array.isArray(localItems)) {
+              localItems.forEach((it: any) => {
+                if (it && it.id) {
+                  if (!map.has(it.id)) {
+                    map.set(it.id, it);
+                  } else {
+                    const existing = map.get(it.id);
+                    if (it.is_public !== undefined && existing.is_public === undefined) {
+                      existing.is_public = Boolean(it.is_public);
+                    }
+                  }
+                }
+              });
+            }
             prev.forEach((it) => {
-              if (!map.has(it.id)) map.set(it.id, it);
+              if (it && it.id && !map.has(it.id)) {
+                map.set(it.id, it);
+              }
             });
             return Array.from(map.values());
           });
+          return;
         }
+      }
+      if (Array.isArray(localItems) && localItems.length > 0) {
+        setSavedTemplates(localItems);
       }
     } catch (e) {
       console.error('Failed to fetch projects:', e);
@@ -434,26 +462,24 @@ export function VisualStudioPage() {
       }
     } catch { }
 
-    fetch('/api/visual-studio/templates', { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setSavedTemplates((prev) => {
-            const serverItems = data.map((d: any) => ({
-              id: d.id,
-              name: d.name,
-              diagram: d.diagram,
-            }));
-            const map = new Map<string, any>();
-            serverItems.forEach((it: any) => map.set(it.id, it));
-            prev.forEach((it) => {
-              if (!map.has(it.id)) map.set(it.id, it);
-            });
-            return Array.from(map.values());
+    fetchWorkspaceProjects();
+
+    const handleTemplateSaved = (e: any) => {
+      fetchWorkspaceProjects();
+      if (e?.detail) {
+        const detail = e.detail;
+        setSavedTemplates((prev) => {
+          const map = new Map<string, any>();
+          map.set(detail.id, detail);
+          prev.forEach((it) => {
+            if (!map.has(it.id)) map.set(it.id, it);
           });
-        }
-      })
-      .catch(() => { });
+          return Array.from(map.values());
+        });
+      }
+    };
+    window.addEventListener('bbot_template_saved', handleTemplateSaved);
+    return () => window.removeEventListener('bbot_template_saved', handleTemplateSaved);
   }, []);
 
   // Keyboard shortcut Ctrl+B / Cmd+B to toggle sidebar

@@ -83,6 +83,7 @@ import type { DiagramSpec, NodeSpec, NodeShape, EdgeStrokeStyle, ArrowMarkerType
 import { InteractiveCanvas, type InteractiveCanvasRef } from './InteractiveCanvas';
 import { MapDatasetModal } from './MapDatasetModal';
 import { applyTemplateToDataset } from './templateMapper';
+import { AuthContext } from '../../contexts/AuthContext';
 
 export interface StudioTemplateItem {
   id: string;
@@ -1024,9 +1025,10 @@ export const DiagramCanvas = React.forwardRef<DiagramCanvasRef, DiagramCanvasPro
   const [connectorStrokeWidth, setConnectorStrokeWidth] = useState<number>(2);
 
   // Step 2: Template Library State
+  const authContext = React.useContext(AuthContext);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState<boolean>(false);
   const [templateTab, setTemplateTab] = useState<'presets' | 'saved' | 'json'>('presets');
-  const [savedTemplates, setSavedTemplates] = useState<Array<{ id: string; name: string; createdAt: string; nodeCount: number; diagram: DiagramSpec }>>(() => {
+  const [savedTemplates, setSavedTemplates] = useState<Array<{ id: string; name: string; createdAt: string; nodeCount: number; diagram: DiagramSpec; is_public?: boolean; created_by?: string; created_by_name?: string }>>(() => {
     try {
       const stored = localStorage.getItem('bbot_user_templates');
       return stored ? JSON.parse(stored) : [];
@@ -1403,9 +1405,13 @@ export const DiagramCanvas = React.forwardRef<DiagramCanvasRef, DiagramCanvasPro
         const localEntry = {
           id: savedItem.id,
           name: savedItem.name,
+          category: savedItem.category || saveTemplateCategory,
           createdAt: new Date().toLocaleDateString(),
           nodeCount: diagram.nodes.length,
           diagram: JSON.parse(JSON.stringify(diagram)),
+          is_public: savedItem.is_public !== undefined ? Boolean(savedItem.is_public) : Boolean(saveTemplateIsPublic),
+          created_by: savedItem.created_by || authContext?.userId || undefined,
+          created_by_name: savedItem.created_by_name || authContext?.username || undefined,
         };
         const updated = [localEntry, ...savedTemplates.filter((t) => t.id !== localEntry.id)];
         setSavedTemplates(updated);
@@ -1414,41 +1420,93 @@ export const DiagramCanvas = React.forwardRef<DiagramCanvasRef, DiagramCanvasPro
         } catch {
           // ignore
         }
+        window.dispatchEvent(new CustomEvent('bbot_template_saved', { detail: localEntry }));
         setIsSaveTemplateModalOpen(false);
         setSaveSuccessMsg(`Template "${savedItem.name}" saved! Shared with team.`);
         setTimeout(() => setSaveSuccessMsg(null), 4000);
         setIsTemplateModalOpen(true);
         setTemplateTab('saved');
       } else {
-        handleSaveCurrentAsTemplate();
+        const fallbackId = `tmpl_${Date.now()}`;
+        const localEntry = {
+          id: fallbackId,
+          name: nameToUse,
+          category: saveTemplateCategory || diagram.diagramType || 'process_flow',
+          createdAt: new Date().toLocaleDateString(),
+          nodeCount: diagram.nodes.length,
+          diagram: JSON.parse(JSON.stringify(diagram)),
+          is_public: Boolean(saveTemplateIsPublic),
+          created_by: authContext?.userId || 'local_user',
+          created_by_name: authContext?.username || 'You',
+        };
+        const updated = [localEntry, ...savedTemplates.filter((t) => t.id !== localEntry.id)];
+        setSavedTemplates(updated);
+        try {
+          localStorage.setItem('bbot_user_templates', JSON.stringify(updated));
+        } catch {
+          // ignore
+        }
+        window.dispatchEvent(new CustomEvent('bbot_template_saved', { detail: localEntry }));
         setIsSaveTemplateModalOpen(false);
+        setSaveSuccessMsg(`Template "${nameToUse}" saved! Shared with team.`);
+        setTimeout(() => setSaveSuccessMsg(null), 4000);
+        setIsTemplateModalOpen(true);
+        setTemplateTab('saved');
       }
     } catch (e) {
       console.error('Error saving template, falling back to local storage', e);
-      handleSaveCurrentAsTemplate();
+      const fallbackId = `tmpl_${Date.now()}`;
+      const localEntry = {
+        id: fallbackId,
+        name: nameToUse,
+        category: saveTemplateCategory || diagram.diagramType || 'process_flow',
+        createdAt: new Date().toLocaleDateString(),
+        nodeCount: diagram.nodes.length,
+        diagram: JSON.parse(JSON.stringify(diagram)),
+        is_public: Boolean(saveTemplateIsPublic),
+        created_by: authContext?.userId || 'local_user',
+        created_by_name: authContext?.username || 'You',
+      };
+      const updated = [localEntry, ...savedTemplates.filter((t) => t.id !== localEntry.id)];
+      setSavedTemplates(updated);
+      try {
+        localStorage.setItem('bbot_user_templates', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      window.dispatchEvent(new CustomEvent('bbot_template_saved', { detail: localEntry }));
       setIsSaveTemplateModalOpen(false);
+      setSaveSuccessMsg(`Template "${nameToUse}" saved! Shared with team.`);
+      setTimeout(() => setSaveSuccessMsg(null), 4000);
+      setIsTemplateModalOpen(true);
+      setTemplateTab('saved');
     } finally {
       setIsSavingTemplate(false);
     }
   };
 
   const handleSaveCurrentAsTemplate = async () => {
-    if (!newTemplateName.trim()) return;
-    const tplName = newTemplateName.trim();
+    const tplName = (newTemplateName || saveTemplateName || diagram.title || 'Custom Template').trim();
+    if (!tplName) return;
     const newEntry = {
       id: `tmpl_${Date.now()}`,
       name: tplName,
+      category: diagram.diagramType || 'process_flow',
       createdAt: new Date().toLocaleDateString(),
       nodeCount: diagram.nodes.length,
       diagram: JSON.parse(JSON.stringify(diagram)),
+      is_public: true,
+      created_by: authContext?.userId || 'local_user',
+      created_by_name: authContext?.username || 'You',
     };
-    const updated = [newEntry, ...savedTemplates];
+    const updated = [newEntry, ...savedTemplates.filter((t) => t.id !== newEntry.id)];
     setSavedTemplates(updated);
     try {
       localStorage.setItem('bbot_user_templates', JSON.stringify(updated));
     } catch (e) {
       console.error('Failed to save template to localStorage', e);
     }
+    window.dispatchEvent(new CustomEvent('bbot_template_saved', { detail: newEntry }));
     setNewTemplateName('');
     setSaveSuccessMsg(`Saved template: "${newEntry.name}"`);
     setTimeout(() => setSaveSuccessMsg(null), 3000);
