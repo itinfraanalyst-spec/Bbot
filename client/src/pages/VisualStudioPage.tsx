@@ -42,6 +42,7 @@ import {
   Trash2,
   Play,
   Save,
+  GitCompare,
 } from 'lucide-react';
 import { DiagramCanvas, type DiagramCanvasRef } from '../components/studio/DiagramCanvas';
 import { useTheme } from '../contexts/ThemeContext';
@@ -1349,6 +1350,16 @@ export function VisualStudioPage() {
               )}
             </div>
           )}
+
+          {/* Cross-Reference Portal Shortcut */}
+          <Link
+            to="/cross-ref"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-teal-500/40 bg-teal-500/10 hover:bg-teal-500/20 text-teal-800 dark:text-teal-300 px-2.5 py-1.5 text-xs font-bold transition-all shadow-xs shrink-0"
+            title="Open Cross-Document Intelligence Portal"
+          >
+            <GitCompare size={13} className="text-teal-600 dark:text-teal-400" />
+            <span className="hidden md:inline">Cross-Ref Portal</span>
+          </Link>
         </div>
       </header>
 

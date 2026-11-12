@@ -8,6 +8,7 @@ from src.auth.routes import router as auth_router
 from src.api.custom_bots import router as custom_bots_router
 from src.api.public_bots import router as public_bots_router
 from src.visual_studio.routes import router as visual_studio_router
+from src.cross_reference.routes import router as cross_reference_router
 from src.auth.db import init_users_table
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -235,6 +236,7 @@ app.include_router(auth_router, prefix="/auth")
 app.include_router(custom_bots_router, prefix="/api")
 app.include_router(public_bots_router, prefix="/api")
 app.include_router(visual_studio_router, prefix="/api/visual-studio")
+app.include_router(cross_reference_router, prefix="/api/cross-reference")
 
 # Serve SPA frontend
 client_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "client", "dist"))

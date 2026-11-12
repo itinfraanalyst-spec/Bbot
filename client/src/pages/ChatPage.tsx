@@ -11,7 +11,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useConversations } from '../hooks/useConversations';
 import { LanguageSelector } from '../components/chat/LanguageSelector';
 import { useProjects } from '../hooks/useProjects';
-import { Sun, Moon, HelpCircle, Menu, Sparkles, Languages, Loader2, Folder } from 'lucide-react';
+import { Sun, Moon, HelpCircle, Menu, Sparkles, Languages, Loader2, Folder, GitCompare } from 'lucide-react';
 
 export function ChatPage() {
   const { t, language, currentLanguageOption } = useLanguage();
@@ -299,6 +299,16 @@ export function ChatPage() {
             >
               <Sparkles size={12} className="text-amber-600 dark:text-amber-300 shrink-0" />
               <span className="hidden sm:inline">{t('visualStudio')}</span>
+            </Link>
+
+            {/* Cross-Reference Portal Link */}
+            <Link
+              to="/cross-ref"
+              className="flex items-center gap-1 px-1.5 sm:px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-900 hover:text-teal-950 border border-teal-300 hover:border-teal-400 text-[0.7rem] sm:text-xs font-bold transition-all shadow-xs dark:bg-teal-600/15 dark:border-teal-500/30 dark:text-teal-300 dark:hover:text-white shrink-0"
+              title="Open Cross-Document Intelligence Portal"
+            >
+              <GitCompare size={12} className="text-teal-600 dark:text-teal-300 shrink-0" />
+              <span className="hidden sm:inline">Cross-Ref Portal</span>
             </Link>
 
             {/* Export Buttons */}

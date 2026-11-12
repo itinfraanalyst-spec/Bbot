@@ -40,6 +40,9 @@ function lazyWithRetry<T extends ComponentType<any>>(
 const VisualStudioPage = lazyWithRetry(() =>
   import('./pages/VisualStudioPage').then((m) => ({ default: m.VisualStudioPage }))
 );
+const CrossReferencePage = lazyWithRetry(() =>
+  import('./pages/CrossReferencePage').then((m) => ({ default: m.CrossReferencePage }))
+);
 const AdminPage = lazyWithRetry(() =>
   import('./pages/AdminPage').then((module) => ({ default: module.AdminPage }))
 );
@@ -79,6 +82,8 @@ function App() {
                       <Route path="/" element={<ChatPage />} />
                       <Route path="/studio" element={<VisualStudioPage />} />
                       <Route path="/visual-studio" element={<VisualStudioPage />} />
+                      <Route path="/cross-ref" element={<CrossReferencePage />} />
+                      <Route path="/cross-reference" element={<CrossReferencePage />} />
                       <Route path="/admin" element={<AdminPage />} />
                     </Route>
 
