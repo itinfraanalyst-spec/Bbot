@@ -43,10 +43,14 @@ import {
   Play,
   Save,
   GitCompare,
+  Shield,
+  Users,
 } from 'lucide-react';
+import clsx from 'clsx';
+import { useAuth } from '../contexts/AuthContext';
 import { DiagramCanvas, type DiagramCanvasRef } from '../components/studio/DiagramCanvas';
 import { useTheme } from '../contexts/ThemeContext';
-import { applyTemplateToDataset } from '../components/studio/templateMapper';
+import { applyTemplateToDataset, scaleTemplateToStepCount, sanitizeDiagramBlueprint } from '../components/studio/templateMapper';
 import type { DiagramSpec, RecommendationResponse, VisualTypeInfo } from '../components/studio/types';
 
 const STUDIO_STORAGE_KEY = 'bbot_visual_studio_state';
@@ -239,8 +243,21 @@ export function VisualStudioPage() {
     diagram && ((Array.isArray(diagram.nodes) && diagram.nodes.length > 0) || diagram.chartData)
   );
 
+  const { userId } = useAuth();
+  const [projectsModalTab, setProjectsModalTab] = useState<'my_projects' | 'community_templates'>('my_projects');
+
   // Saved Template Blueprints for Cross-Dataset Generation
-  const [savedTemplates, setSavedTemplates] = useState<{ id: string; name: string; diagram: DiagramSpec; category?: string; createdAt?: string; nodeCount?: number }[]>([]);
+  const [savedTemplates, setSavedTemplates] = useState<{
+    id: string;
+    name: string;
+    diagram: DiagramSpec;
+    category?: string;
+    createdAt?: string;
+    nodeCount?: number;
+    is_public?: boolean;
+    created_by?: string;
+    created_by_name?: string;
+  }[]>([]);
   const [isProjectsModalOpen, setIsProjectsModalOpen] = useState(false);
   const [isSavingProgressTop, setIsSavingProgressTop] = useState(false);
   const [saveProgressToastTop, setSaveProgressToastTop] = useState<string | null>(null);
@@ -259,6 +276,9 @@ export function VisualStudioPage() {
               createdAt: d.created_at ? new Date(d.created_at).toLocaleDateString() : undefined,
               nodeCount: d.node_count || d.diagram?.nodes?.length || 0,
               diagram: d.diagram,
+              is_public: Boolean(d.is_public),
+              created_by: d.created_by,
+              created_by_name: d.created_by_name,
             }));
             const map = new Map<string, any>();
             serverItems.forEach((it: any) => map.set(it.id, it));
@@ -286,6 +306,7 @@ export function VisualStudioPage() {
         createdAt: new Date().toLocaleDateString(),
         nodeCount: diagram.nodes?.length || 0,
         diagram: JSON.parse(JSON.stringify(diagram)),
+        is_public: true,
       };
       setSavedTemplates((prev) => [newEntry, ...prev.filter((p) => p.id !== templateId)]);
 
@@ -306,11 +327,11 @@ export function VisualStudioPage() {
           description: diagram.summary || 'User saved visual studio project',
           category: diagram.diagramType || 'process_flow',
           diagram: diagram,
-          is_public: false,
+          is_public: true,
         }),
       });
 
-      setSaveProgressToastTop('Saved!');
+      setSaveProgressToastTop('Saved to Team Templates!');
       setTimeout(() => setSaveProgressToastTop(null), 2500);
       setHasUnsavedEdits(false);
     } catch (e) {
@@ -331,6 +352,56 @@ export function VisualStudioPage() {
       setHasUnsavedEdits(false);
       setIsProjectsModalOpen(false);
     }
+  };
+
+  const handleApplyCommunityDesign = (item: any) => {
+    if (!item.diagram) return;
+    const sanitized = sanitizeDiagramBlueprint(item.diagram, item.name);
+    setDiagram(sanitized);
+    if (sanitized.diagramType) {
+      setSelectedType(sanitized.diagramType);
+    }
+    setHasUnsavedEdits(false);
+    setIsProjectsModalOpen(false);
+    setExportNotice({
+      type: 'success',
+      message: `✨ Applied "${item.name}" design blueprint (Data-Sanitized & Ready)!`,
+    });
+    setTimeout(() => setExportNotice(null), 4000);
+  };
+
+  const handleAdaptTemplateToActiveCanvas = (item: any) => {
+    if (!item.diagram) return;
+    if (diagram && diagram.nodes && diagram.nodes.length > 0) {
+      const adapted = applyTemplateToDataset(item.diagram, diagram);
+      setDiagram(adapted);
+      setHasUnsavedEdits(true);
+      setIsProjectsModalOpen(false);
+      setExportNotice({
+        type: 'success',
+        message: `⚡ Adapted "${item.name}" design to your current canvas data!`,
+      });
+      setTimeout(() => setExportNotice(null), 4000);
+    } else {
+      handleApplyCommunityDesign(item);
+    }
+  };
+
+  const handleScaleAndApplyTemplate = (item: any, count: number) => {
+    if (!item.diagram) return;
+    const sanitized = sanitizeDiagramBlueprint(item.diagram, item.name);
+    const scaled = scaleTemplateToStepCount(sanitized, count);
+    setDiagram(scaled);
+    if (scaled.diagramType) {
+      setSelectedType(scaled.diagramType);
+    }
+    setHasUnsavedEdits(false);
+    setIsProjectsModalOpen(false);
+    setExportNotice({
+      type: 'success',
+      message: `🎯 Adapted "${item.name}" design to exact ${count} stages!`,
+    });
+    setTimeout(() => setExportNotice(null), 4000);
   };
 
   const handleDeleteSavedProject = async (id: string, e: React.MouseEvent) => {
@@ -2115,9 +2186,9 @@ export function VisualStudioPage() {
                   <FolderOpen size={18} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-[var(--text-primary)]">My Projects & Saved Progress</h3>
+                  <h3 className="text-sm font-bold text-[var(--text-primary)]">Workspace Projects & Shared Templates</h3>
                   <p className="text-xs text-[var(--text-muted)]">
-                    Switch between different visual diagrams or continue editing from where you left off
+                    Switch between your saved visuals or apply team-shared design blueprints with automatic step scaling
                   </p>
                 </div>
               </div>
@@ -2131,55 +2202,192 @@ export function VisualStudioPage() {
               </button>
             </div>
 
-            {/* Project List */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-3">
-              {savedTemplates.length === 0 ? (
-                <div className="py-12 text-center text-[var(--text-muted)] space-y-2">
-                  <FolderOpen size={36} className="mx-auto opacity-30 text-amber-500" />
-                  <p className="text-sm font-medium">No saved projects found</p>
-                  <p className="text-xs text-[var(--text-muted)]">
-                    Use the "Save Progress" button at top to save multiple diagrams here!
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {savedTemplates.map((proj) => (
-                    <div
-                      key={proj.id}
-                      onClick={() => handleOpenSavedProject(proj)}
-                      className="group relative flex flex-col justify-between p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] hover:border-amber-500/40 hover:bg-amber-500/5 transition-all cursor-pointer shadow-xs hover:shadow-md"
-                    >
-                      <div className="space-y-1.5">
-                        <div className="flex items-start justify-between gap-2">
-                          <h4 className="text-xs font-bold text-[var(--text-primary)] group-hover:text-amber-500 line-clamp-1">
-                            {proj.name}
-                          </h4>
-                          <button
-                            type="button"
-                            onClick={(e) => handleDeleteSavedProject(proj.id, e)}
-                            title="Delete project"
-                            className="opacity-0 group-hover:opacity-100 p-1 text-[var(--text-muted)] hover:text-rose-500 rounded transition-opacity"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                        <p className="text-[11px] text-[var(--text-secondary)] line-clamp-2">
-                          {proj.diagram?.summary || 'Saved custom architecture & workflow flow.'}
-                        </p>
-                      </div>
+            {/* Tabs: My Projects vs Team / Community Templates */}
+            <div className="flex items-center gap-2 px-6 pt-3 border-b border-[var(--border-subtle)] bg-[var(--bg-primary)]">
+              <button
+                type="button"
+                onClick={() => setProjectsModalTab('my_projects')}
+                className={clsx(
+                  "pb-2.5 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer",
+                  projectsModalTab === 'my_projects'
+                    ? "border-amber-500 text-amber-500 dark:text-amber-400"
+                    : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                )}
+              >
+                <FolderOpen size={13} />
+                <span>My Projects</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-500 dark:text-amber-400 font-mono font-bold">
+                  {savedTemplates.filter((t) => !t.created_by || t.created_by === userId).length}
+                </span>
+              </button>
 
-                      <div className="mt-4 pt-3 border-t border-[var(--border-subtle)]/60 flex items-center justify-between text-[10px] text-[var(--text-muted)] font-mono">
-                        <span className="flex items-center gap-1">
-                          <Layers size={11} className="text-amber-500" />
-                          {proj.nodeCount || proj.diagram?.nodes?.length || 0} nodes
-                        </span>
-                        <span className="flex items-center gap-1.5 text-amber-500 font-bold group-hover:translate-x-0.5 transition-transform">
-                          Open <Play size={10} />
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+              <button
+                type="button"
+                onClick={() => setProjectsModalTab('community_templates')}
+                className={clsx(
+                  "pb-2.5 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer",
+                  projectsModalTab === 'community_templates'
+                    ? "border-cyan-500 text-cyan-500 dark:text-cyan-400"
+                    : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                )}
+              >
+                <Share2 size={13} />
+                <span>Team & Community Templates</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-cyan-500/20 text-cyan-500 dark:text-cyan-400 font-mono font-bold">
+                  {savedTemplates.filter((t) => t.is_public).length}
+                </span>
+              </button>
+            </div>
+
+            {/* Project List / Community Template List */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-3">
+              {projectsModalTab === 'community_templates' && (
+                <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-700 dark:text-cyan-300 text-xs mb-3">
+                  <Shield size={16} className="shrink-0 text-cyan-500" />
+                  <span className="leading-relaxed">
+                    <strong>Strict Design Privacy:</strong> When applying shared templates, only the visual structure, layout geometry, colors, and styles are used. Proprietary user data is automatically sanitized into generic stage placeholders or mapped to your active document.
+                  </span>
                 </div>
+              )}
+
+              {projectsModalTab === 'my_projects' ? (
+                savedTemplates.filter((t) => !t.created_by || t.created_by === userId).length === 0 ? (
+                  <div className="py-12 text-center text-[var(--text-muted)] space-y-2">
+                    <FolderOpen size={36} className="mx-auto opacity-30 text-amber-500" />
+                    <p className="text-sm font-medium">No saved personal projects found</p>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      Use the "Save Progress" button at top to save diagrams here!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {savedTemplates
+                      .filter((t) => !t.created_by || t.created_by === userId)
+                      .map((proj) => (
+                        <div
+                          key={proj.id}
+                          onClick={() => handleOpenSavedProject(proj)}
+                          className="group relative flex flex-col justify-between p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] hover:border-amber-500/40 hover:bg-amber-500/5 transition-all cursor-pointer shadow-xs hover:shadow-md"
+                        >
+                          <div className="space-y-1.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <h4 className="text-xs font-bold text-[var(--text-primary)] group-hover:text-amber-500 line-clamp-1">
+                                {proj.name}
+                              </h4>
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteSavedProject(proj.id, e)}
+                                title="Delete project"
+                                className="opacity-0 group-hover:opacity-100 p-1 text-[var(--text-muted)] hover:text-rose-500 rounded transition-opacity"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                            <p className="text-[11px] text-[var(--text-secondary)] line-clamp-2">
+                              {proj.diagram?.summary || 'Saved custom architecture & workflow flow.'}
+                            </p>
+                          </div>
+
+                          <div className="mt-4 pt-3 border-t border-[var(--border-subtle)]/60 flex items-center justify-between text-[10px] text-[var(--text-muted)] font-mono">
+                            <span className="flex items-center gap-1">
+                              <Layers size={11} className="text-amber-500" />
+                              {proj.nodeCount || proj.diagram?.nodes?.length || 0} nodes
+                            </span>
+                            <span className="flex items-center gap-1.5 text-amber-500 font-bold group-hover:translate-x-0.5 transition-transform">
+                              Open <Play size={10} />
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )
+              ) : (
+                /* Team & Community Templates Tab */
+                savedTemplates.filter((t) => t.is_public).length === 0 ? (
+                  <div className="py-12 text-center text-[var(--text-muted)] space-y-2">
+                    <Share2 size={36} className="mx-auto opacity-30 text-cyan-500" />
+                    <p className="text-sm font-medium">No team design templates published yet</p>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      When anyone in the workspace saves a diagram with "Save Progress", its design blueprint will appear here for the entire team!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {savedTemplates
+                      .filter((t) => t.is_public)
+                      .map((proj) => (
+                        <div
+                          key={proj.id}
+                          className="group relative flex flex-col justify-between p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all shadow-xs hover:shadow-md"
+                        >
+                          <div className="space-y-1.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <h4 className="text-xs font-bold text-[var(--text-primary)] group-hover:text-cyan-500 line-clamp-1">
+                                {proj.name}
+                              </h4>
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 shrink-0">
+                                Design Only
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted)]">
+                              <span className="flex items-center gap-1">
+                                <Users size={10} /> {proj.created_by_name || 'Team Colleague'}
+                              </span>
+                              <span>•</span>
+                              <span>{proj.nodeCount || proj.diagram?.nodes?.length || 0} stages</span>
+                            </div>
+                            <p className="text-[11px] text-[var(--text-secondary)] line-clamp-2">
+                              {proj.diagram?.summary || 'Reusable visual architecture and workflow layout.'}
+                            </p>
+                          </div>
+
+                          {/* Quick Scale Buttons (Data kam/zyada ho toh adapt kare) */}
+                          <div className="mt-3 pt-2.5 border-t border-[var(--border-subtle)]/60">
+                            <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)] mb-1.5">
+                              <span>Auto-Scale Steps:</span>
+                              <span className="text-[9px] font-mono">click step count</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {[3, 4, 5, 6, 8].map((count) => (
+                                <button
+                                  key={count}
+                                  type="button"
+                                  onClick={() => handleScaleAndApplyTemplate(proj, count)}
+                                  className="flex-1 py-1 rounded-md text-[10px] font-mono font-bold bg-[var(--bg-surface-hover)] hover:bg-cyan-500/20 hover:text-cyan-500 dark:hover:text-cyan-300 border border-[var(--border-subtle)] hover:border-cyan-500/40 transition-colors cursor-pointer text-center"
+                                  title={`Adapt this template to exact ${count} steps`}
+                                >
+                                  {count}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Primary Apply Actions */}
+                          <div className="mt-3 pt-2 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleApplyCommunityDesign(proj)}
+                              className="flex-1 inline-flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-600 dark:text-cyan-300 font-bold text-[10px] transition-colors cursor-pointer"
+                              title="Apply this template's design blueprint"
+                            >
+                              <Play size={10} /> Use Design
+                            </button>
+
+                            {diagram?.nodes && diagram.nodes.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => handleAdaptTemplateToActiveCanvas(proj)}
+                                className="flex-1 inline-flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-600 dark:text-amber-300 font-bold text-[10px] transition-colors cursor-pointer"
+                                title="Map current canvas content into this template's visual design"
+                              >
+                                <Zap size={10} /> Adapt Data
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )
               )}
             </div>
 

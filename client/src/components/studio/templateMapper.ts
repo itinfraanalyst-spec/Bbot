@@ -403,3 +403,104 @@ export function sanitizeDiagramBlueprint(
   return cloned;
 }
 
+/**
+ * Adaptively scales a template diagram to an exact target node count.
+ * - If targetCount > template.nodes.length: duplicates the styling pattern and geometry
+ *   seamlessly continuing the trajectory with sequential connectors.
+ * - If targetCount < template.nodes.length: cleanly retains the first targetCount nodes
+ *   and ensures valid edge connections.
+ */
+export function scaleTemplateToStepCount(
+  template: DiagramSpec,
+  targetCount: number
+): DiagramSpec {
+  const cloned: DiagramSpec = JSON.parse(JSON.stringify(template));
+  const tplNodes = cloned.nodes || [];
+  if (tplNodes.length === 0 || targetCount <= 0) return cloned;
+
+  // Calculate trajectory delta
+  let dx = 290;
+  let dy = 0;
+  if (tplNodes.length >= 2) {
+    const x0 = tplNodes[0].x ?? 100;
+    const x1 = tplNodes[1].x ?? 390;
+    const y0 = tplNodes[0].y ?? 200;
+    const y1 = tplNodes[1].y ?? 200;
+    dx = x1 - x0 || 290;
+    dy = y1 - y0;
+  }
+
+  const newNodes: NodeSpec[] = [];
+  for (let i = 0; i < targetCount; i++) {
+    if (i < tplNodes.length) {
+      newNodes.push({
+        ...tplNodes[i],
+        id: `node_step_${i + 1}`,
+        order: i + 1,
+        label: tplNodes[i].label || `Phase ${i + 1}: Step`,
+      });
+    } else {
+      // Replicate the styling archetype of earlier nodes
+      const archetype = tplNodes[i % tplNodes.length];
+      const lastNode = newNodes[newNodes.length - 1];
+      const posX = (lastNode.x ?? 100) + dx;
+      const posY = (lastNode.y ?? 200) + dy;
+
+      newNodes.push({
+        id: `node_step_${i + 1}`,
+        type: archetype.type || 'process',
+        label: `Phase ${i + 1}: Step`,
+        sublabel: 'Operational step or task details',
+        badge: String(i + 1).padStart(2, '0'),
+        order: i + 1,
+        icon: archetype.icon || 'Layers',
+        x: posX,
+        y: posY,
+        width: archetype.width || 230,
+        height: archetype.height || 110,
+        customStyle: {
+          ...(archetype.customStyle || {}),
+          ...(((archetype as any).shape || archetype.customStyle?.shape) ? { shape: (archetype as any).shape || archetype.customStyle?.shape } : {}),
+        },
+      });
+    }
+  }
+
+  // Generate clean sequential edges
+  const tplEdges = cloned.edges || [];
+  const defaultEdgeStyle = tplEdges[0]?.customStyle || {
+    routing: 'curved',
+    strokeWidth: 2,
+    strokeStyle: 'solid',
+    arrowMarker: 'arrow',
+    color: '#06b6d4',
+  };
+
+  const newEdges: EdgeSpec[] = [];
+  for (let i = 0; i < newNodes.length - 1; i++) {
+    const src = newNodes[i];
+    const tgt = newNodes[i + 1];
+    const tplEdge = tplEdges[i] || tplEdges[i % Math.max(1, tplEdges.length)] || {};
+
+    newEdges.push({
+      id: `e_${src.id}_${tgt.id}`,
+      source: src.id,
+      target: tgt.id,
+      label: tplEdge.label || 'Next',
+      style: tplEdge.style || 'solid',
+      customStyle: {
+        ...(defaultEdgeStyle as any),
+        ...(tplEdge.customStyle || {}),
+        routing: (tplEdge as any).routing || tplEdge.customStyle?.routing || 'curved',
+        color: src.customStyle?.borderColor || tplEdge.customStyle?.color || defaultEdgeStyle.color,
+      },
+    });
+  }
+
+  return {
+    ...cloned,
+    nodes: newNodes,
+    edges: newEdges,
+  };
+}
+
