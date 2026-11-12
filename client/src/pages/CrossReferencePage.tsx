@@ -28,6 +28,7 @@ import {
   Copy,
   Check,
   Diff,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface DocumentSummaryItem {
@@ -50,6 +51,8 @@ interface DocumentUnderstanding {
   key_takeaways: string[];
   key_entities_or_roles: string[];
   topics_covered: string[];
+  detailed_explanation?: string;
+  scope_and_applicability?: string;
   word_count: number;
   page_count: number;
 }
@@ -61,6 +64,8 @@ interface TopicComparisonItem {
   doc_b_stance: string;
   status: 'aligned' | 'conflict' | 'doc_a_only' | 'doc_b_only' | 'stricter' | 'supersedes';
   verdict: string;
+  practical_implication?: string;
+  guidance?: string;
 }
 
 interface DocumentSection {
@@ -1151,25 +1156,49 @@ export function CrossReferencePage() {
 
                       {analysisResult.understanding_a && (
                         <>
-                          <div className="p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
-                            <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-1">
-                              <Target size={13} className="text-[var(--accent)]" />
-                              Primary Purpose / Goal
+                          <div className="p-3.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
+                            <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-1.5">
+                              <Target size={14} className="text-[var(--accent)]" />
+                              Primary Purpose / Core Mandate
                             </div>
-                            <div className="text-[var(--text-secondary)]">
+                            <div className="text-[var(--text-secondary)] leading-relaxed font-medium">
                               {analysisResult.understanding_a.core_purpose}
                             </div>
                           </div>
 
-                          <div className="text-xs">
-                            <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-1">
-                              <Info size={13} className="text-[var(--accent)]" />
-                              What this document is about (Summary):
+                          <div className="p-3.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
+                            <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-1.5">
+                              <Info size={14} className="text-[var(--accent)]" />
+                              Executive Summary & Core Intent:
                             </div>
-                            <p className="text-[var(--text-secondary)] leading-relaxed">
+                            <p className="text-[var(--text-secondary)] leading-relaxed whitespace-pre-line">
                               {analysisResult.understanding_a.executive_summary}
                             </p>
                           </div>
+
+                          {analysisResult.understanding_a.detailed_explanation && (
+                            <div className="p-3.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
+                              <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-1.5">
+                                <BookOpen size={14} className="text-[var(--accent)]" />
+                                Operational Workflow & Procedural Execution:
+                              </div>
+                              <p className="text-[var(--text-secondary)] leading-relaxed whitespace-pre-line">
+                                {analysisResult.understanding_a.detailed_explanation}
+                              </p>
+                            </div>
+                          )}
+
+                          {analysisResult.understanding_a.scope_and_applicability && (
+                            <div className="p-3.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
+                              <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-1.5">
+                                <ShieldCheck size={14} className="text-emerald-500" />
+                                Scope, Boundaries & Policy Rules:
+                              </div>
+                              <p className="text-[var(--text-secondary)] leading-relaxed whitespace-pre-line">
+                                {analysisResult.understanding_a.scope_and_applicability}
+                              </p>
+                            </div>
+                          )}
 
                           <div>
                             <div className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-2">
@@ -1178,7 +1207,7 @@ export function CrossReferencePage() {
                             </div>
                             <div className="flex flex-col gap-1.5">
                               {analysisResult.understanding_a.key_takeaways.map((point, idx) => (
-                                <div key={idx} className="p-2 rounded-lg bg-[var(--bg-primary)] text-xs text-[var(--text-secondary)] flex items-start gap-2 border border-[var(--border-subtle)]">
+                                <div key={idx} className="p-2.5 rounded-lg bg-[var(--bg-primary)] text-xs text-[var(--text-secondary)] flex items-start gap-2 border border-[var(--border-subtle)] leading-relaxed">
                                   <span className="w-4 h-4 rounded-full bg-[color-mix(in_srgb,var(--accent)_20%,transparent)] text-[var(--accent)] text-[9px] font-bold flex items-center justify-center shrink-0 mt-0.5">
                                     {idx + 1}
                                   </span>
@@ -1228,25 +1257,49 @@ export function CrossReferencePage() {
 
                       {analysisResult.understanding_b && (
                         <>
-                          <div className="p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
-                            <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-1">
-                              <Target size={13} className="text-[var(--accent)]" />
-                              Primary Purpose / Goal
+                          <div className="p-3.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
+                            <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-1.5">
+                              <Target size={14} className="text-[var(--accent)]" />
+                              Primary Purpose / Core Mandate
                             </div>
-                            <div className="text-[var(--text-secondary)]">
+                            <div className="text-[var(--text-secondary)] leading-relaxed font-medium">
                               {analysisResult.understanding_b.core_purpose}
                             </div>
                           </div>
 
-                          <div className="text-xs">
-                            <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-1">
-                              <Info size={13} className="text-[var(--accent)]" />
-                              What this document is about (Summary):
+                          <div className="p-3.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
+                            <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-1.5">
+                              <Info size={14} className="text-[var(--accent)]" />
+                              Executive Summary & Core Intent:
                             </div>
-                            <p className="text-[var(--text-secondary)] leading-relaxed">
+                            <p className="text-[var(--text-secondary)] leading-relaxed whitespace-pre-line">
                               {analysisResult.understanding_b.executive_summary}
                             </p>
                           </div>
+
+                          {analysisResult.understanding_b.detailed_explanation && (
+                            <div className="p-3.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
+                              <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-1.5">
+                                <BookOpen size={14} className="text-[var(--accent)]" />
+                                Operational Workflow & Procedural Execution:
+                              </div>
+                              <p className="text-[var(--text-secondary)] leading-relaxed whitespace-pre-line">
+                                {analysisResult.understanding_b.detailed_explanation}
+                              </p>
+                            </div>
+                          )}
+
+                          {analysisResult.understanding_b.scope_and_applicability && (
+                            <div className="p-3.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
+                              <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-1.5">
+                                <ShieldCheck size={14} className="text-emerald-500" />
+                                Scope, Boundaries & Policy Rules:
+                              </div>
+                              <p className="text-[var(--text-secondary)] leading-relaxed whitespace-pre-line">
+                                {analysisResult.understanding_b.scope_and_applicability}
+                              </p>
+                            </div>
+                          )}
 
                           <div>
                             <div className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-2">
@@ -1255,7 +1308,7 @@ export function CrossReferencePage() {
                             </div>
                             <div className="flex flex-col gap-1.5">
                               {analysisResult.understanding_b.key_takeaways.map((point, idx) => (
-                                <div key={idx} className="p-2 rounded-lg bg-[var(--bg-primary)] text-xs text-[var(--text-secondary)] flex items-start gap-2 border border-[var(--border-subtle)]">
+                                <div key={idx} className="p-2.5 rounded-lg bg-[var(--bg-primary)] text-xs text-[var(--text-secondary)] flex items-start gap-2 border border-[var(--border-subtle)] leading-relaxed">
                                   <span className="w-4 h-4 rounded-full bg-[color-mix(in_srgb,var(--accent)_20%,transparent)] text-[var(--accent)] text-[9px] font-bold flex items-center justify-center shrink-0 mt-0.5">
                                     {idx + 1}
                                   </span>
@@ -1338,29 +1391,59 @@ export function CrossReferencePage() {
 
                         {/* Stance Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                          <div className="p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
-                            <div className="text-[10px] font-bold uppercase text-[var(--accent)] mb-1">
+                          <div className="p-3.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
+                            <div className="text-[10px] font-bold uppercase text-[var(--accent)] mb-1.5 flex items-center gap-1">
+                              <FileText size={12} />
                               {analysisResult.doc_a.filename} Stance:
                             </div>
-                            <div className="text-[var(--text-secondary)] leading-relaxed font-medium">
+                            <p className="text-[var(--text-secondary)] leading-relaxed whitespace-pre-line font-medium">
                               {row.doc_a_stance}
-                            </div>
+                            </p>
                           </div>
 
-                          <div className="p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
-                            <div className="text-[10px] font-bold uppercase text-[var(--accent)] mb-1">
+                          <div className="p-3.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
+                            <div className="text-[10px] font-bold uppercase text-[var(--accent)] mb-1.5 flex items-center gap-1">
+                              <FileText size={12} />
                               {analysisResult.doc_b.filename} Stance:
                             </div>
-                            <div className="text-[var(--text-secondary)] leading-relaxed font-medium">
+                            <p className="text-[var(--text-secondary)] leading-relaxed whitespace-pre-line font-medium">
                               {row.doc_b_stance}
-                            </div>
+                            </p>
                           </div>
                         </div>
 
+                        {/* Practical Implication & Operational Risk */}
+                        {row.practical_implication && (
+                          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs mb-2.5">
+                            <div className="text-[10px] font-bold uppercase text-amber-600 dark:text-amber-400 mb-1 flex items-center gap-1.5">
+                              <AlertTriangle size={13} />
+                              Practical Operational Impact & Real-World Risk:
+                            </div>
+                            <p className="text-[var(--text-secondary)] leading-relaxed font-normal whitespace-pre-line">
+                              {row.practical_implication}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Precedence & Harmonization Guidance */}
+                        {row.guidance && (
+                          <div className="p-3 rounded-xl bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--accent)_28%,transparent)] text-xs mb-2.5">
+                            <div className="text-[10px] font-bold uppercase text-[var(--accent)] mb-1 flex items-center gap-1.5">
+                              <Sparkles size={13} />
+                              Compliance & Precedence Guidance:
+                            </div>
+                            <p className="text-[var(--text-secondary)] leading-relaxed font-normal whitespace-pre-line">
+                              {row.guidance}
+                            </p>
+                          </div>
+                        )}
+
                         {/* Verdict Footer */}
-                        <div className="p-2.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs flex items-start gap-2">
-                          <span className="font-bold text-[var(--text-primary)] shrink-0">bbot Verdict:</span>
-                          <span className="text-[var(--text-secondary)]">{row.verdict}</span>
+                        <div className="p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs flex items-start gap-2">
+                          <span className="font-bold text-[var(--text-primary)] shrink-0 flex items-center gap-1">
+                            <CheckCircle2 size={13} className="text-[var(--accent)]" /> bbot Verdict:
+                          </span>
+                          <span className="text-[var(--text-secondary)] leading-relaxed">{row.verdict}</span>
                         </div>
                       </div>
                     );

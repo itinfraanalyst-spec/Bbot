@@ -7,12 +7,14 @@ class DocumentUnderstanding(BaseModel):
     doc_id: str
     filename: str
     document_type: str = Field(default="General Document", description="Document category/type")
-    executive_summary: str = Field(default="", description="2-3 sentence overview of what this document is about")
-    core_purpose: str = Field(default="", description="Primary purpose or objective")
-    target_audience: str = Field(default="", description="Intended audience or stakeholders")
-    key_takeaways: List[str] = Field(default_factory=list, description="4-6 bullet points of crucial rules/points")
+    executive_summary: str = Field(default="", description="Comprehensive explanatory narrative of the document")
+    core_purpose: str = Field(default="", description="Primary purpose and business/legal rationale")
+    target_audience: str = Field(default="", description="Intended audience, stakeholders and departments")
+    key_takeaways: List[str] = Field(default_factory=list, description="Explanatory points of crucial rules and standards")
     key_entities_or_roles: List[str] = Field(default_factory=list, description="Key roles or entities mentioned")
     topics_covered: List[str] = Field(default_factory=list, description="Key topics covered in document")
+    detailed_explanation: str = Field(default="", description="In-depth operational breakdown explaining how the policy/document functions in practice")
+    scope_and_applicability: str = Field(default="", description="Scope, boundaries, and exceptions")
     word_count: int = 0
     page_count: int = 1
 
@@ -24,6 +26,8 @@ class TopicComparisonItem(BaseModel):
     doc_b_stance: str
     status: str = Field(default="aligned", description="aligned | conflict | doc_a_only | doc_b_only | stricter | supersedes")
     verdict: str
+    practical_implication: Optional[str] = Field(default="", description="Explanatory consequence and operational impact")
+    guidance: Optional[str] = Field(default="", description="Actionable recommendation on precedence or compliance")
 
 
 class CrossReferenceRequest(BaseModel):
