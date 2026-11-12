@@ -32,6 +32,7 @@ import {
   ChevronDown,
   ChevronUp,
   ArrowRight,
+  ArrowLeftRight,
 } from 'lucide-react';
 
 interface DocumentSummaryItem {
@@ -220,6 +221,19 @@ export function CrossReferencePage() {
   const [harmonizedMap, setHarmonizedMap] = useState<Record<string, { clause: string; rationale: string; loading: boolean }>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Polish enhancements: Toast, Topic Search & Filtering, Analysis Stepper
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [topicSearchQuery, setTopicSearchQuery] = useState('');
+  const [topicFilter, setTopicFilter] = useState<'all' | 'conflict' | 'aligned' | 'stricter' | 'exclusive'>('all');
+  const [analysisStep, setAnalysisStep] = useState(1);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage((current) => (current === msg ? null : current));
+    }, 2800);
+  };
+
   // Audit History state
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [auditHistory, setAuditHistory] = useState<SavedAuditRecord[]>([]);
@@ -326,6 +340,7 @@ export function CrossReferencePage() {
         if (fullData.sections_a?.length > 0) setSelectedSectionAId(fullData.sections_a[0].id);
         if (fullData.sections_b?.length > 0) setSelectedSectionBId(fullData.sections_b[0].id);
         setIsHistoryOpen(false);
+        showToast(`✨ Restored past audit: ${fullData.doc_a.filename} vs ${fullData.doc_b.filename}`);
       }
     } catch (err) {
       console.error('Failed to restore audit record:', err);
@@ -348,6 +363,7 @@ export function CrossReferencePage() {
       }
       return updated;
     });
+    showToast('Record removed from history');
   };
 
   const clearAuditHistory = async () => {
@@ -358,6 +374,20 @@ export function CrossReferencePage() {
     }
     localStorage.removeItem('bbot_cross_ref_audits');
     setAuditHistory([]);
+    showToast('Audit history cleared');
+  };
+
+  // Swap Document 1 and Document 2
+  const handleSwapDocuments = () => {
+    if (!docAId && !docBId) return;
+    const tempId = docAId;
+    const tempUnder = understandingA;
+    setDocAId(docBId);
+    setUnderstandingA(understandingB);
+    setDocBId(tempId);
+    setUnderstandingB(tempUnder);
+    setAnalysisResult(null);
+    showToast('⇄ Swapped Document 1 and Document 2');
   };
 
   // Direct file upload handler
@@ -448,6 +478,10 @@ export function CrossReferencePage() {
 
     setErrorMsg(null);
     setIsAnalyzing(true);
+    setAnalysisStep(1);
+    const stepTimer1 = setTimeout(() => setAnalysisStep(2), 1600);
+    const stepTimer2 = setTimeout(() => setAnalysisStep(3), 3600);
+
     try {
       const res = await fetch('/api/cross-reference/analyze', {
         method: 'POST',
@@ -474,9 +508,12 @@ export function CrossReferencePage() {
       if (result.sections_b?.length > 0) setSelectedSectionBId(result.sections_b[0].id);
 
       saveAuditToHistory(result);
+      showToast('✨ Analysis completed successfully');
     } catch (err: any) {
       setErrorMsg(err.message || 'Analysis run karne me problem aayi.');
     } finally {
+      clearTimeout(stepTimer1);
+      clearTimeout(stepTimer2);
       setIsAnalyzing(false);
     }
   };
@@ -511,6 +548,7 @@ export function CrossReferencePage() {
           loading: false,
         },
       }));
+      showToast('✨ Synthesized harmonized replacement clause');
     } catch (err) {
       setHarmonizedMap(prev => ({
         ...prev,
@@ -526,6 +564,7 @@ export function CrossReferencePage() {
   const handleCopyText = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
+    showToast('📋 Copied to clipboard');
     setTimeout(() => setCopiedId(null), 2000);
   };
 
@@ -892,7 +931,18 @@ export function CrossReferencePage() {
                 Supports PDF, Word (DOCX), Excel (XLSX, CSV), Markdown, TXT, PPTX & JSON files.
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
+              {(docAId || docBId) && (
+                <button
+                  type="button"
+                  onClick={handleSwapDocuments}
+                  className="px-2.5 py-1 rounded-lg border border-[var(--border-subtle)] hover:border-[var(--accent)] text-[var(--text-muted)] hover:text-[var(--accent)] text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                  title="Swap Document 1 and Document 2"
+                >
+                  <ArrowLeftRight size={12} />
+                  <span>⇄ Swap Docs</span>
+                </button>
+              )}
               {(docAId || docBId) && (
                 <button
                   onClick={handleClearAll}
@@ -1117,71 +1167,123 @@ export function CrossReferencePage() {
                 <span>Dono documents upload ya select karein comparative analysis ke liye.</span>
               )}
             </div>
-            <button
-              onClick={handleAnalyze}
-              disabled={isAnalyzing || !docAId || !docBId}
-              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              {isAnalyzing ? (
-                <>
-                  <Loader2 size={15} className="animate-spin" />
-                  <span>Cross-Auditing Documents...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles size={15} />
-                  <span>⚡ Compare & Understand Documents</span>
-                </>
-              )}
-            </button>
+            {isAnalyzing ? (
+              <div className="w-full sm:w-auto flex flex-col gap-1.5 p-2.5 px-4 rounded-xl bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--accent)_30%,transparent)]">
+                <div className="flex items-center gap-2 text-xs font-bold text-[var(--accent)]">
+                  <Loader2 size={14} className="animate-spin" />
+                  <span>
+                    {analysisStep === 1 && '1/3 Ingesting & Extracting Sections...'}
+                    {analysisStep === 2 && '2/3 Mapping Policies & Harmonizing Clauses...'}
+                    {analysisStep === 3 && '3/3 Calculating Compliance Harmony & Verdict...'}
+                  </span>
+                </div>
+                <div className="w-full bg-[var(--bg-primary)] h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[var(--accent)] transition-all duration-700 ease-out"
+                    style={{ width: `${(analysisStep / 3) * 100}%` }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={handleAnalyze}
+                disabled={isAnalyzing || !docAId || !docBId}
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Sparkles size={15} />
+                <span>⚡ Compare & Understand Documents</span>
+              </button>
+            )}
           </div>
         </section>
 
         {/* STEP 2: Results Section with Clean Tabs */}
         {analysisResult && (
           <section className="flex flex-col gap-5">
-            {/* Quick Metrics Bar - bbot native style */}
+            {/* Quick Metrics Bar - bbot native style (Interactive Tabs) */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-3.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center gap-3 shadow-xs">
-                <div className="w-10 h-10 rounded-lg bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent)] border border-[color-mix(in_srgb,var(--accent)_28%,transparent)] flex items-center justify-center font-bold text-sm">
-                  {analysisResult.summary.alignment_score}%
-                </div>
-                <div>
-                  <div className="text-[11px] text-[var(--text-muted)] font-medium">Alignment Match</div>
-                  <div className="text-xs font-bold text-[var(--text-primary)]">
-                    {analysisResult.summary.alignment_score >= 80 ? 'High Harmony' : 'Moderate Divergence'}
+              <div
+                onClick={() => setActiveTab('understanding')}
+                className={`p-3.5 rounded-xl bg-[var(--bg-surface)] border transition-all flex items-center justify-between cursor-pointer group shadow-xs ${
+                  activeTab === 'understanding' ? 'border-[var(--accent)] ring-1 ring-[var(--accent)]' : 'border-[var(--border-subtle)] hover:border-[var(--accent)]/50'
+                }`}
+                title="Click to view Document Understanding"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent)] border border-[color-mix(in_srgb,var(--accent)_28%,transparent)] flex items-center justify-center font-bold text-sm">
+                    {analysisResult.summary.alignment_score}%
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-[var(--text-muted)] font-medium">Alignment Match</div>
+                    <div className="text-xs font-bold text-[var(--text-primary)]">
+                      {analysisResult.summary.alignment_score >= 80 ? 'High Harmony' : 'Moderate Divergence'}
+                    </div>
                   </div>
                 </div>
+                <ArrowRight size={14} className="text-[var(--text-muted)] group-hover:text-[var(--accent)] group-hover:translate-x-0.5 transition-all" />
               </div>
 
-              <div className="p-3.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center gap-3 shadow-xs">
-                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold text-sm">
-                  {analysisResult.summary.agreed_count}
+              <div
+                onClick={() => {
+                  setActiveTab('matrix');
+                  setTopicFilter('aligned');
+                }}
+                className={`p-3.5 rounded-xl bg-[var(--bg-surface)] border transition-all flex items-center justify-between cursor-pointer group shadow-xs ${
+                  activeTab === 'matrix' && topicFilter === 'aligned' ? 'border-emerald-500 ring-1 ring-emerald-500' : 'border-[var(--border-subtle)] hover:border-emerald-500/50'
+                }`}
+                title="Click to filter Harmonized clauses"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold text-sm">
+                    {analysisResult.summary.agreed_count}
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-[var(--text-muted)] font-medium">Consistent Clauses</div>
+                    <div className="text-xs font-bold text-[var(--text-primary)]">Aligned Points</div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-[11px] text-[var(--text-muted)] font-medium">Consistent Clauses</div>
-                  <div className="text-xs font-bold text-[var(--text-primary)]">Aligned Points</div>
-                </div>
+                <ArrowRight size={14} className="text-[var(--text-muted)] group-hover:text-emerald-500 group-hover:translate-x-0.5 transition-all" />
               </div>
 
-              <div className="p-3.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center gap-3 shadow-xs">
-                <div className="w-10 h-10 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 flex items-center justify-center font-bold text-sm">
-                  {analysisResult.discrepancies.length}
+              <div
+                onClick={() => setActiveTab('conflicts')}
+                className={`p-3.5 rounded-xl bg-[var(--bg-surface)] border transition-all flex items-center justify-between cursor-pointer group shadow-xs ${
+                  activeTab === 'conflicts' ? 'border-rose-500 ring-1 ring-rose-500' : 'border-[var(--border-subtle)] hover:border-rose-500/50'
+                }`}
+                title="Click to view Conflicts & Discrepancies"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 flex items-center justify-center font-bold text-sm">
+                    {analysisResult.discrepancies.length}
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-[var(--text-muted)] font-medium">Conflicts & Gaps</div>
+                    <div className="text-xs font-bold text-[var(--text-primary)]">Action Required</div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-[11px] text-[var(--text-muted)] font-medium">Conflicts & Gaps</div>
-                  <div className="text-xs font-bold text-[var(--text-primary)]">Action Required</div>
-                </div>
+                <ArrowRight size={14} className="text-[var(--text-muted)] group-hover:text-rose-500 group-hover:translate-x-0.5 transition-all" />
               </div>
 
-              <div className="p-3.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center gap-3 shadow-xs">
-                <div className="w-10 h-10 rounded-lg bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] border border-[var(--border-subtle)] flex items-center justify-center font-bold text-sm">
-                  {analysisResult.comparison_matrix.length || analysisResult.links.length}
+              <div
+                onClick={() => {
+                  setActiveTab('matrix');
+                  setTopicFilter('all');
+                }}
+                className={`p-3.5 rounded-xl bg-[var(--bg-surface)] border transition-all flex items-center justify-between cursor-pointer group shadow-xs ${
+                  activeTab === 'matrix' && topicFilter === 'all' ? 'border-[var(--accent)] ring-1 ring-[var(--accent)]' : 'border-[var(--border-subtle)] hover:border-[var(--accent)]/50'
+                }`}
+                title="Click to view all Topics in Matrix"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] border border-[var(--border-subtle)] flex items-center justify-center font-bold text-sm">
+                    {analysisResult.comparison_matrix.length || analysisResult.links.length}
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-[var(--text-muted)] font-medium">Topics Analyzed</div>
+                    <div className="text-xs font-bold text-[var(--text-primary)]">Cross-Audit Points</div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-[11px] text-[var(--text-muted)] font-medium">Topics Analyzed</div>
-                  <div className="text-xs font-bold text-[var(--text-primary)]">Cross-Audit Points</div>
-                </div>
+                <ArrowRight size={14} className="text-[var(--text-muted)] group-hover:text-[var(--accent)] group-hover:translate-x-0.5 transition-all" />
               </div>
             </div>
 
@@ -1495,14 +1597,94 @@ export function CrossReferencePage() {
             {/* TAB 2: TOPIC-BY-TOPIC COMPARISON MATRIX */}
             {activeTab === 'matrix' && (
               <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                    Clause-by-Clause & Topic Comparison Matrix ({analysisResult.comparison_matrix.length} Topics)
-                  </h3>
+                {/* Search Bar & Filter Pills Toolbar */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] shadow-xs">
+                  {/* Search Bar */}
+                  <div className="relative flex-1 w-full">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                    <input
+                      type="text"
+                      value={topicSearchQuery}
+                      onChange={(e) => setTopicSearchQuery(e.target.value)}
+                      placeholder="Search topics, clauses, or operational impacts..."
+                      className="w-full pl-9 pr-8 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                    />
+                    {topicSearchQuery && (
+                      <button
+                        onClick={() => setTopicSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Filter Pills */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => setTopicFilter('all')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                        topicFilter === 'all'
+                          ? 'bg-[var(--accent)] text-white shadow-xs'
+                          : 'bg-[var(--bg-primary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)]'
+                      }`}
+                    >
+                      All ({analysisResult.comparison_matrix.length})
+                    </button>
+                    <button
+                      onClick={() => setTopicFilter('aligned')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                        topicFilter === 'aligned'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'bg-[var(--bg-primary)] text-[var(--text-muted)] hover:text-emerald-500 border border-[var(--border-subtle)]'
+                      }`}
+                    >
+                      ✓ Harmonized
+                    </button>
+                    <button
+                      onClick={() => setTopicFilter('conflict')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                        topicFilter === 'conflict'
+                          ? 'bg-rose-600 text-white shadow-xs'
+                          : 'bg-[var(--bg-primary)] text-[var(--text-muted)] hover:text-rose-500 border border-[var(--border-subtle)]'
+                      }`}
+                    >
+                      ⚠️ Conflicts
+                    </button>
+                    <button
+                      onClick={() => setTopicFilter('stricter')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                        topicFilter === 'stricter'
+                          ? 'bg-[var(--accent)] text-white shadow-xs'
+                          : 'bg-[var(--bg-primary)] text-[var(--text-muted)] hover:text-[var(--accent)] border border-[var(--border-subtle)]'
+                      }`}
+                    >
+                      ⚡ Stricter Limits
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-3">
-                  {analysisResult.comparison_matrix.map((row, idx) => {
+                  {analysisResult.comparison_matrix
+                    .filter((row) => {
+                      if (topicFilter === 'conflict') return row.status === 'conflict';
+                      if (topicFilter === 'aligned') return row.status === 'aligned';
+                      if (topicFilter === 'stricter') return row.status === 'stricter';
+                      if (topicFilter === 'exclusive') return row.status === 'doc_a_only' || row.status === 'doc_b_only';
+                      return true;
+                    })
+                    .filter((row) => {
+                      if (!topicSearchQuery.trim()) return true;
+                      const q = topicSearchQuery.toLowerCase();
+                      return (
+                        row.topic.toLowerCase().includes(q) ||
+                        row.doc_a_stance.toLowerCase().includes(q) ||
+                        row.doc_b_stance.toLowerCase().includes(q) ||
+                        row.verdict.toLowerCase().includes(q) ||
+                        (row.practical_implication && row.practical_implication.toLowerCase().includes(q))
+                      );
+                    })
+                    .map((row, idx) => {
                     const isConflict = row.status === 'conflict';
                     const isAligned = row.status === 'aligned';
                     const isStricter = row.status === 'stricter';
@@ -1661,6 +1843,19 @@ export function CrossReferencePage() {
                               >
                                 {disc.severity} Risk
                               </span>
+
+                              {/* ASK COPILOT BUTTON */}
+                              <button
+                                onClick={() => {
+                                  setActiveTab('copilot');
+                                  setCopilotQuery(`Explain the conflict in "${disc.topic}": Doc 1 states "${disc.doc_a_clause}" whereas Doc 2 states "${disc.doc_b_clause}". How should our organization reconcile this operational difference?`);
+                                }}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-primary)] hover:bg-[var(--bg-surface-hover)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-xs font-bold transition-all shadow-xs cursor-pointer"
+                                title="Ask Copilot about this conflict"
+                              >
+                                <MessageSquare size={12} className="text-[var(--accent)]" />
+                                <span>Ask Copilot</span>
+                              </button>
 
                               {/* ONE-CLICK HARMONIZE BUTTON */}
                               <button
@@ -2392,6 +2587,14 @@ export function CrossReferencePage() {
               </div>
             )}
           </section>
+        )}
+
+        {/* Floating Toast Feedback Notification */}
+        {toastMessage && (
+          <div className="fixed bottom-6 right-6 z-50 bg-[var(--bg-surface)] border border-[var(--accent)] text-[var(--text-primary)] px-4 py-2.5 rounded-xl shadow-2xl text-xs font-semibold animate-in fade-in slide-in-from-bottom-2 flex items-center gap-2">
+            <Sparkles size={14} className="text-[var(--accent)] shrink-0" />
+            <span>{toastMessage}</span>
+          </div>
         )}
       </main>
     </div>

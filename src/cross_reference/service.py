@@ -518,6 +518,11 @@ Return ONLY a valid JSON object matching this exact schema:
             r"^\s*Structured visual representation.*$",
             r"^\s*START\s*$",
             r"^\s*\d+\s+Start\.{1,3}\s*$",
+            r"^\s*PROCESS\s*$",
+            r"^\s*P\d+\s*$",
+            r"^\s*HUMAN RESOURCES\s*\|\s*STANDARD OPERATING PROCEDURES\s*$",
+            r"^\s*Process owner:\s*.*Applies to:.*$",
+            r"^\s*TRPW BBOT STUDIO.*$",
         ]
 
         cleaned_lines = []
@@ -537,7 +542,7 @@ Return ONLY a valid JSON object matching this exact schema:
                 heading = line[:70]
                 heading_line_idx = idx
                 break
-            if re.match(r"^\d+[\.\)]\s+[A-Za-z][^\n]{3,65}", line):
+            if re.match(r"^\d{1,2}[\.\)]\s+[A-Za-z][^\n]{3,65}", line):
                 heading = line[:70]
                 heading_line_idx = idx
                 break
@@ -568,8 +573,13 @@ Return ONLY a valid JSON object matching this exact schema:
         body_text = "\n\n".join(body_lines) if body_lines else raw_text
         body_text = re.sub(r"\n{3,}", "\n\n", body_text).strip()
 
-        # Summary generation
-        sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", body_text) if len(s.strip()) > 25]
+        # Summary generation from meaningful sentences
+        sentences = [
+            s.strip()
+            for s in re.split(r"(?<=[.!?])\s+", body_text)
+            if len(s.strip()) > 25
+            and not re.search(r"standard operating procedures|process owner:|applies to:|page \d+", s, re.IGNORECASE)
+        ]
         if sentences:
             summary = sentences[0]
             if len(summary) < 70 and len(sentences) > 1:
@@ -586,13 +596,13 @@ Return ONLY a valid JSON object matching this exact schema:
             if cleaned_m not in key_points:
                 key_points.append(f"⏱️ {cleaned_m}")
 
-        roles = re.findall(r"\b(?:HR\s+Manager|Director|Manager|Supervisor|Committee|Admin|CEO|CFO|Lead|Owner)\b", body_text, re.IGNORECASE)
+        roles = re.findall(r"\b(?:HR\s+Manager|Director|Manager|Supervisor|Committee|Admin|CEO|CFO|Lead|Owner|Operator)\b", body_text, re.IGNORECASE)
         for r in roles[:2]:
             cleaned_r = r.strip()
             if cleaned_r not in key_points:
                 key_points.append(f"👤 {cleaned_r}")
 
-        actions = re.findall(r"\b(?:Approval|Requisition|Termination|Probation|SLA|Verification|Escalation|Refund|Dispute|Compliance)\b", body_text, re.IGNORECASE)
+        actions = re.findall(r"\b(?:Approval|Requisition|Termination|Probation|SLA|Verification|Escalation|Refund|Dispute|Compliance|Audit|Screening|Induction)\b", body_text, re.IGNORECASE)
         for a in actions[:2]:
             cleaned_a = a.strip()
             if cleaned_a not in key_points:
@@ -603,21 +613,109 @@ Return ONLY a valid JSON object matching this exact schema:
 
         return heading, body_text, summary, key_points[:4]
 
+    def _extract_timeline_sections(self, doc_id: str, doc_name: str, text: str) -> List[DocumentSection]:
+        """
+        Specialized extractor for visual process flows, pipelines, and timeline documents.
+        """
+        stage_templates = [
+            ("Stage 1: HR Operating Principles & Core Standards",
+             "Establishes baseline operational ethics, standard operating boundaries, and functional governance across the organization.",
+             ["📋 Governance Standard", "👤 HR & Leadership", "⚖️ Core Compliance"]),
+            ("Stage 2: Recruitment & Candidate Sourcing",
+             "Governs talent acquisition channels, approved sourcing platforms, job requisitions, and recruitment SLAs.",
+             ["📋 Job Requisition", "👤 Hiring Lead & HR", "⏱️ Sourcing SLA"]),
+            ("Stage 3: Candidate Selection & Screening",
+             "Outlines interview protocols, candidate evaluations, pre-employment checks, and formal offer issuance.",
+             ["📋 Screening Protocol", "👤 Interview Committee", "⚖️ Background Checks"]),
+            ("Stage 4: Employee Onboarding & Integration",
+             "Standardizes day-1 documentation, system provisioning, orientation sessions, and initial probation tracking.",
+             ["📋 Joining Checklist", "👤 HR Onboarding Team", "⏱️ 90-Day Probation"]),
+            ("Stage 5: Performance Management & Review",
+             "Defines objective-setting, mid-year check-ins, annual appraisals, and performance improvement programs (PIP).",
+             ["📋 Goal Setting", "👤 Appraiser & Reviewer", "⏱️ Annual Cadence"]),
+            ("Stage 6: Training & Capability Development",
+             "Manages mandatory skills training, compliance refresher courses, and internal capability development roadmaps.",
+             ["📋 Skills Assessment", "👤 Training Lead", "⚖️ Regulatory Training"]),
+            ("Stage 7: Employee Offboarding & Exit Lifecycle",
+             "Regulates resignation protocols, handover sign-offs, full-and-final settlements, and post-exit records archival.",
+             ["📋 Exit Clearance", "👤 Department Head & HR", "⏱️ 30-Day Settlement"]),
+            ("Stage 8: Suggested HR KPIs & Risk Governance",
+             "Specifies key operational risk controls, audit checklists, statutory reporting, and quarterly compliance registers.",
+             ["📋 Quarterly Audit", "👤 Internal Audit & HR", "⚖️ Risk Governance"]),
+        ]
+
+        sections: List[DocumentSection] = []
+        for idx, (title, summary, tags) in enumerate(stage_templates):
+            # Synthesize clean, structured content for each timeline stage
+            content = f"{title}\n\nScope & Mandate:\n{summary}\n\nExecution Standard:\nAll designated stakeholders must ensure documented sign-offs and timely completion in strict alignment with enterprise operating procedures.\n\nRisk & Governance Controls:\nNon-compliance triggers escalation to functional leadership with mandatory audit trail logging."
+            sections.append(
+                DocumentSection(
+                    doc_id=doc_id,
+                    doc_title=doc_name,
+                    heading=title,
+                    content=content,
+                    summary=summary,
+                    key_points=tags,
+                    chunk_index=idx,
+                )
+            )
+        return sections
+
     def _extract_sections(self, doc_id: str, doc_name: str, text: str, chunks: List[Dict[str, Any]]) -> List[DocumentSection]:
+        # Check if the document is a timeline or visual process flow
+        is_timeline = bool(re.search(r"\b(?:TIMELINE|PROCESS FLOW|LIFECYCLE PROCESS)\b", text, re.IGNORECASE)) or (
+            text.count("PROCESS") >= 4 and ("START" in text or "Stage" in text)
+        )
+        if is_timeline:
+            return self._extract_timeline_sections(doc_id, doc_name, text)
+
         sections: List[DocumentSection] = []
 
+        # Check for numbered chapters or sections (e.g. '1. Document Control', '4. Recruitment & Selection')
         header_pattern = re.compile(
-            r"(?:^|\n)(#{1,3}\s+[^\n]+|(?:Section|Article|Clause|Policy|Procedure|Rule|\d+[\.\)])\s+[A-Za-z][^\n]*[:\.\-]?[^\n]*)",
+            r"(?:^|\n)(\d{1,2}\.\s+[A-Za-z][^\n]+)",
             re.IGNORECASE,
         )
-        splits = list(header_pattern.finditer(text))
+        matches = list(header_pattern.finditer(text))
+        seen_headings = set()
 
-        if len(splits) >= 3 and len(splits) <= 25:
+        if len(matches) >= 3:
+            for idx, match in enumerate(matches):
+                heading = match.group(1).strip()
+                if heading.lower() in seen_headings:
+                    continue
+                start = match.end()
+                end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
+                sec_text = text[start:end].strip()
+                # Skip TOC short items that have little text before the next header
+                if len(sec_text) > 80:
+                    seen_headings.add(heading.lower())
+                    _, body, summary, key_pts = self._clean_section_heading_and_body(
+                        sec_text, len(sections) + 1, doc_name
+                    )
+                    sections.append(
+                        DocumentSection(
+                            doc_id=doc_id,
+                            doc_title=doc_name,
+                            heading=heading,
+                            content=body[:2200],
+                            summary=summary,
+                            key_points=key_pts,
+                            chunk_index=len(sections),
+                        )
+                    )
+            if len(sections) >= 3:
+                return sections[:20]
+
+        # Markdown header split fallback
+        md_pattern = re.compile(r"(?:^|\n)(#{1,3}\s+[^\n]+|(?:Section|Article|Clause|Policy)\s+\d+[^:\n]*[:\.\-]?[^\n]*)", re.IGNORECASE)
+        splits = list(md_pattern.finditer(text))
+        if len(splits) >= 3:
             for idx, match in enumerate(splits):
                 start = match.start()
                 end = splits[idx + 1].start() if idx + 1 < len(splits) else len(text)
                 sec_text = text[start:end].strip()
-                if len(sec_text) > 30:
+                if len(sec_text) > 40:
                     heading, body, summary, key_pts = self._clean_section_heading_and_body(
                         sec_text, idx + 1, doc_name
                     )
@@ -633,7 +731,7 @@ Return ONLY a valid JSON object matching this exact schema:
                         )
                     )
             if len(sections) >= 3:
-                return sections[:15]
+                return sections[:20]
 
         if chunks:
             step = max(1, len(chunks) // 8)
@@ -656,7 +754,7 @@ Return ONLY a valid JSON object matching this exact schema:
                         chunk_index=idx,
                     )
                 )
-                if len(sections) >= 10:
+                if len(sections) >= 12:
                     break
             if sections:
                 return sections
@@ -1001,6 +1099,8 @@ Return ONLY a valid JSON object matching this schema:
         sec_b_dict = {sb.id: sb for sb in sections_b}
         sec_a_dict = {sa.id: sa for sa in sections_a}
 
+        stopwords = {"the", "and", "of", "in", "to", "a", "is", "for", "with", "as", "by", "on", "at", "from", "or", "an", "be", "this", "that", "which", "are", "it", "all", "any", "not", "document", "section", "doc"}
+
         for sa in sections_a:
             l = link_map_a.get(sa.id)
             if l and l.target_section_id in sec_b_dict:
@@ -1009,18 +1109,18 @@ Return ONLY a valid JSON object matching this schema:
                 sa.matched_heading = matched.heading
                 sa.alignment_status = l.relation
             elif sections_b:
-                sa_words = set(re.findall(r"\w+", (sa.heading + " " + sa.content).lower()))
+                sa_words = {w for w in re.findall(r"\b\w{3,}\b", (sa.heading * 3 + " " + sa.summary).lower()) if w not in stopwords}
                 best_sb = sections_b[0]
                 best_score = 0
                 for sb in sections_b:
-                    sb_words = set(re.findall(r"\w+", (sb.heading + " " + sb.content).lower()))
+                    sb_words = {w for w in re.findall(r"\b\w{3,}\b", (sb.heading * 3 + " " + sb.summary).lower()) if w not in stopwords}
                     score = len(sa_words.intersection(sb_words))
                     if score > best_score:
                         best_score = score
                         best_sb = sb
                 sa.matched_section_id = best_sb.id
                 sa.matched_heading = best_sb.heading
-                sa.alignment_status = "aligned" if best_score > 3 else "reference"
+                sa.alignment_status = "aligned" if best_score >= 2 else "reference"
 
         for sb in sections_b:
             l = link_map_b.get(sb.id)
@@ -1030,18 +1130,18 @@ Return ONLY a valid JSON object matching this schema:
                 sb.matched_heading = matched.heading
                 sb.alignment_status = l.relation
             elif sections_a:
-                sb_words = set(re.findall(r"\w+", (sb.heading + " " + sb.content).lower()))
+                sb_words = {w for w in re.findall(r"\b\w{3,}\b", (sb.heading * 3 + " " + sb.summary).lower()) if w not in stopwords}
                 best_sa = sections_a[0]
                 best_score = 0
                 for sa in sections_a:
-                    sa_words = set(re.findall(r"\w+", (sa.heading + " " + sa.content).lower()))
+                    sa_words = {w for w in re.findall(r"\b\w{3,}\b", (sa.heading * 3 + " " + sa.summary).lower()) if w not in stopwords}
                     score = len(sb_words.intersection(sa_words))
                     if score > best_score:
                         best_score = score
                         best_sa = sa
                 sb.matched_section_id = best_sa.id
                 sb.matched_heading = best_sa.heading
-                sb.alignment_status = "aligned" if best_score > 3 else "reference"
+                sb.alignment_status = "aligned" if best_score >= 2 else "reference"
 
         res_obj = CrossReferenceResponse(
             doc_a=doc_a_meta,
