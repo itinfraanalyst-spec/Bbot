@@ -43,6 +43,11 @@ class DocumentSection(BaseModel):
     doc_title: str
     heading: str
     content: str
+    summary: Optional[str] = None
+    key_points: List[str] = Field(default_factory=list)
+    matched_section_id: Optional[str] = None
+    matched_heading: Optional[str] = None
+    alignment_status: Optional[str] = None
     page_start: Optional[int] = None
     page_end: Optional[int] = None
     chunk_index: int = 0

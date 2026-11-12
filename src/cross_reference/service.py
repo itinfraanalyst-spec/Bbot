@@ -373,85 +373,201 @@ Return ONLY a valid JSON object matching this exact schema:
 
         return doc or {"id": doc_id, "filename": f"Doc {doc_id[:6]}"}, "No text content available for this document.", []
 
+    def _clean_section_heading_and_body(
+        self, raw_text: str, fallback_index: int, doc_name: str
+    ) -> Tuple[str, str, str, List[str]]:
+        """
+        Cleans raw chunk text, removes page headers/footers (e.g. '--- Page 1 ---', 'Page 5 of 20'),
+        detects meaningful clause/section title, formats body text, generates a 1-sentence summary,
+        and extracts key operational metrics/tags.
+        """
+        lines = [line.strip() for line in raw_text.split("\n")]
+        noise_patterns = [
+            r"^\s*[-–—=_*#]+\s*$",
+            r"^\s*[-–—=]*\s*Page\s+\d+.*$",
+            r"^\s*Page\s+\d+\s+(?:of\s+\d+)?\s*$",
+            r"^\s*Page\s+\d+\s*[-–—:]*\s*$",
+            r"^\s*\d+\s*$",
+            r"^\s*Structured visual representation.*$",
+            r"^\s*START\s*$",
+            r"^\s*\d+\s+Start\.{1,3}\s*$",
+        ]
+
+        cleaned_lines = []
+        for line in lines:
+            if not line:
+                continue
+            is_noise = any(re.match(p, line, re.IGNORECASE) for p in noise_patterns)
+            if not is_noise:
+                cleaned_lines.append(line)
+
+        heading = ""
+        heading_line_idx = -1
+
+        # Priority 1: Numbered clause or policy title (e.g. '4. Recruitment & Selection', 'Section 2: Scope')
+        for idx, line in enumerate(cleaned_lines[:8]):
+            if re.match(r"^(?:Section|Article|Clause|Policy|Part|Step|Chapter)\s+\d+[^:\n]*[:\.\-]?[^\n]*", line, re.IGNORECASE):
+                heading = line[:70]
+                heading_line_idx = idx
+                break
+            if re.match(r"^\d+[\.\)]\s+[A-Za-z][^\n]{3,65}", line):
+                heading = line[:70]
+                heading_line_idx = idx
+                break
+            if re.match(r"^#{1,3}\s+[^\n]{4,65}", line):
+                heading = re.sub(r"^#{1,3}\s*", "", line)[:70]
+                heading_line_idx = idx
+                break
+
+        # Priority 2: Distinct title-like phrase
+        if not heading:
+            for idx, line in enumerate(cleaned_lines[:5]):
+                if 5 <= len(line) <= 65 and not line.endswith(".") and not line.startswith("http"):
+                    if line.lower() not in doc_name.lower():
+                        heading = line
+                        heading_line_idx = idx
+                        break
+
+        # Fallback heading
+        if not heading:
+            if cleaned_lines:
+                first_clean = cleaned_lines[0]
+                heading = first_clean[:60] if len(first_clean) <= 60 else first_clean[:55] + "..."
+                heading_line_idx = 0
+            else:
+                heading = f"Clause {fallback_index}: Operational Provisions"
+
+        body_lines = [l for i, l in enumerate(cleaned_lines) if i != heading_line_idx]
+        body_text = "\n\n".join(body_lines) if body_lines else raw_text
+        body_text = re.sub(r"\n{3,}", "\n\n", body_text).strip()
+
+        # Summary generation
+        sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", body_text) if len(s.strip()) > 25]
+        if sentences:
+            summary = sentences[0]
+            if len(summary) < 70 and len(sentences) > 1:
+                summary += " " + sentences[1]
+            summary = summary[:240]
+        else:
+            summary = f"Defines procedural rules and execution standards for {heading}."
+
+        # Key points / metrics extraction
+        key_points: List[str] = []
+        metrics = re.findall(r"\b\d+\s*(?:business\s+days?|calendar\s+days?|days?|hours?|weeks?|months?|years?|%|percent|lakhs?|cr|rupees|rs\.?|\$)\b", body_text, re.IGNORECASE)
+        for m in metrics[:2]:
+            cleaned_m = m.strip()
+            if cleaned_m not in key_points:
+                key_points.append(f"⏱️ {cleaned_m}")
+
+        roles = re.findall(r"\b(?:HR\s+Manager|Director|Manager|Supervisor|Committee|Admin|CEO|CFO|Lead|Owner)\b", body_text, re.IGNORECASE)
+        for r in roles[:2]:
+            cleaned_r = r.strip()
+            if cleaned_r not in key_points:
+                key_points.append(f"👤 {cleaned_r}")
+
+        actions = re.findall(r"\b(?:Approval|Requisition|Termination|Probation|SLA|Verification|Escalation|Refund|Dispute|Compliance)\b", body_text, re.IGNORECASE)
+        for a in actions[:2]:
+            cleaned_a = a.strip()
+            if cleaned_a not in key_points:
+                key_points.append(f"📋 {cleaned_a}")
+
+        if not key_points:
+            key_points = ["📌 Operational Clause", "⚖️ Compliance Governance"]
+
+        return heading, body_text, summary, key_points[:4]
+
     def _extract_sections(self, doc_id: str, doc_name: str, text: str, chunks: List[Dict[str, Any]]) -> List[DocumentSection]:
         sections: List[DocumentSection] = []
+
         header_pattern = re.compile(
-            r"(?:^|\n)(#{1,3}\s+[^\n]+|(?:Section|Article|Clause|Policy|Procedure|Rule)\s+\d+[^:\n]*[:\.\-]?[^\n]*)",
+            r"(?:^|\n)(#{1,3}\s+[^\n]+|(?:Section|Article|Clause|Policy|Procedure|Rule|\d+[\.\)])\s+[A-Za-z][^\n]*[:\.\-]?[^\n]*)",
             re.IGNORECASE,
         )
         splits = list(header_pattern.finditer(text))
 
-        if len(splits) >= 3 and len(splits) <= 20:
+        if len(splits) >= 3 and len(splits) <= 25:
             for idx, match in enumerate(splits):
                 start = match.start()
                 end = splits[idx + 1].start() if idx + 1 < len(splits) else len(text)
-                header_raw = match.group(1).strip()
-                clean_heading = re.sub(r"^#{1,3}\s*", "", header_raw).strip()
                 sec_text = text[start:end].strip()
-                preview_content = sec_text[:1400]
-                if len(preview_content) > 40:
+                if len(sec_text) > 30:
+                    heading, body, summary, key_pts = self._clean_section_heading_and_body(
+                        sec_text, idx + 1, doc_name
+                    )
                     sections.append(
                         DocumentSection(
                             doc_id=doc_id,
                             doc_title=doc_name,
-                            heading=clean_heading[:70],
-                            content=preview_content,
+                            heading=heading,
+                            content=body[:2200],
+                            summary=summary,
+                            key_points=key_pts,
                             chunk_index=idx,
                         )
                     )
             if len(sections) >= 3:
-                return sections[:12]
+                return sections[:15]
 
         if chunks:
-            step = max(1, len(chunks) // 6)
+            step = max(1, len(chunks) // 8)
             for idx in range(0, len(chunks), step):
                 cluster = chunks[idx : idx + step]
                 cluster_text = " ".join(c.get("text", "") for c in cluster).strip()
                 if not cluster_text:
                     continue
-                first_line = cluster_text.split("\n")[0].strip()
-                first_line = re.sub(r"^[#\*\-_\s]+", "", first_line)
-                heading = first_line[:60] if (len(first_line) > 5 and len(first_line) <= 60) else f"Part {len(sections) + 1}: Provisions & Scope"
+                heading, body, summary, key_pts = self._clean_section_heading_and_body(
+                    cluster_text, len(sections) + 1, doc_name
+                )
                 sections.append(
                     DocumentSection(
                         doc_id=doc_id,
                         doc_title=doc_name,
                         heading=heading,
-                        content=cluster_text[:1400],
+                        content=body[:2200],
+                        summary=summary,
+                        key_points=key_pts,
                         chunk_index=idx,
                     )
                 )
-                if len(sections) >= 8:
+                if len(sections) >= 10:
                     break
             if sections:
                 return sections
 
         paragraphs = [p.strip() for p in text.split("\n\n") if len(p.strip()) > 80]
-        step = max(1, len(paragraphs) // 5)
+        step = max(1, len(paragraphs) // 6)
         for i in range(0, len(paragraphs), step):
             p_slice = paragraphs[i : i + step]
             combined = "\n\n".join(p_slice)
-            heading = combined.split("\n")[0][:50]
-            heading = re.sub(r"^[#\*\-_\s]+", "", heading) or f"Section {len(sections) + 1}"
+            heading, body, summary, key_pts = self._clean_section_heading_and_body(
+                combined, len(sections) + 1, doc_name
+            )
             sections.append(
                 DocumentSection(
                     doc_id=doc_id,
                     doc_title=doc_name,
                     heading=heading,
-                    content=combined[:1400],
+                    content=body[:2200],
+                    summary=summary,
+                    key_points=key_pts,
                     chunk_index=i,
                 )
             )
-            if len(sections) >= 6:
+            if len(sections) >= 8:
                 break
 
         if not sections:
+            heading, body, summary, key_pts = self._clean_section_heading_and_body(
+                text[:2200], 1, doc_name
+            )
             sections.append(
                 DocumentSection(
                     doc_id=doc_id,
                     doc_title=doc_name,
-                    heading="General Scope & Content",
-                    content=text[:1400],
+                    heading=heading,
+                    content=body[:2200],
+                    summary=summary,
+                    key_points=key_pts,
                     chunk_index=0,
                 )
             )
@@ -705,6 +821,54 @@ Return ONLY a valid JSON object matching this schema:
                 key_risks=["Review discrepancy items for deviations in limits or authority."],
                 key_recommendations=["Align terminology and cross-reference shared standards."],
             )
+
+        # Enrich sections with cross-document correlations & counterpart links
+        link_map_a = {l.source_section_id: l for l in links}
+        link_map_b = {l.target_section_id: l for l in links}
+        sec_b_dict = {sb.id: sb for sb in sections_b}
+        sec_a_dict = {sa.id: sa for sa in sections_a}
+
+        for sa in sections_a:
+            l = link_map_a.get(sa.id)
+            if l and l.target_section_id in sec_b_dict:
+                matched = sec_b_dict[l.target_section_id]
+                sa.matched_section_id = matched.id
+                sa.matched_heading = matched.heading
+                sa.alignment_status = l.relation
+            elif sections_b:
+                sa_words = set(re.findall(r"\w+", (sa.heading + " " + sa.content).lower()))
+                best_sb = sections_b[0]
+                best_score = 0
+                for sb in sections_b:
+                    sb_words = set(re.findall(r"\w+", (sb.heading + " " + sb.content).lower()))
+                    score = len(sa_words.intersection(sb_words))
+                    if score > best_score:
+                        best_score = score
+                        best_sb = sb
+                sa.matched_section_id = best_sb.id
+                sa.matched_heading = best_sb.heading
+                sa.alignment_status = "aligned" if best_score > 3 else "reference"
+
+        for sb in sections_b:
+            l = link_map_b.get(sb.id)
+            if l and l.source_section_id in sec_a_dict:
+                matched = sec_a_dict[l.source_section_id]
+                sb.matched_section_id = matched.id
+                sb.matched_heading = matched.heading
+                sb.alignment_status = l.relation
+            elif sections_a:
+                sb_words = set(re.findall(r"\w+", (sb.heading + " " + sb.content).lower()))
+                best_sa = sections_a[0]
+                best_score = 0
+                for sa in sections_a:
+                    sa_words = set(re.findall(r"\w+", (sa.heading + " " + sa.content).lower()))
+                    score = len(sb_words.intersection(sa_words))
+                    if score > best_score:
+                        best_score = score
+                        best_sa = sa
+                sb.matched_section_id = best_sa.id
+                sb.matched_heading = best_sa.heading
+                sb.alignment_status = "aligned" if best_score > 3 else "reference"
 
         return CrossReferenceResponse(
             doc_a=doc_a_meta,

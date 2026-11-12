@@ -29,6 +29,9 @@ import {
   Check,
   Diff,
   ShieldCheck,
+  ChevronDown,
+  ChevronUp,
+  ArrowRight,
 } from 'lucide-react';
 
 interface DocumentSummaryItem {
@@ -74,6 +77,11 @@ interface DocumentSection {
   doc_title: string;
   heading: string;
   content: string;
+  summary?: string;
+  key_points?: string[];
+  matched_section_id?: string;
+  matched_heading?: string;
+  alignment_status?: string;
   page_start?: number;
   page_end?: number;
   chunk_index: number;
@@ -195,11 +203,14 @@ export function CrossReferencePage() {
   const [activeTab, setActiveTab] = useState<'understanding' | 'matrix' | 'conflicts' | 'reader' | 'copilot'>('understanding');
   const [understandingSubTab, setUnderstandingSubTab] = useState<'both' | 'doc_a' | 'doc_b'>('both');
 
-  // Reader enhancements: Search & Redline Diff
+  // Reader enhancements: Search, Redline Diff, Expansion & Deep Filtering
   const [readerSearchQuery, setReaderSearchQuery] = useState('');
   const [readerMode, setReaderMode] = useState<'split' | 'redline'>('split');
+  const [readerFilter, setReaderFilter] = useState<'all' | 'metrics' | 'linked'>('all');
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [selectedSectionAId, setSelectedSectionAId] = useState<string | null>(null);
   const [selectedSectionBId, setSelectedSectionBId] = useState<string | null>(null);
+  const sectionRefsA = useRef<Record<string, HTMLDivElement | null>>({});
   const sectionRefsB = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Harmonize state: id -> { clause, rationale, loading }
@@ -456,19 +467,64 @@ export function CrossReferencePage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const toggleSectionExpand = (secId: string) => {
+    setExpandedSections(prev => ({ ...prev, [secId]: !prev[secId] }));
+  };
+
+  const handleAskAboutSection = (sec: DocumentSection, docRole: string) => {
+    const q = `Explain clause "${sec.heading}" from ${docRole} (${sec.doc_title}). What are its operational rules, limits, and how does it compare with the other document?`;
+    setActiveTab('copilot');
+    handleSendCopilotQuery(q);
+  };
+
+  const handleJumpToSectionB = (targetId: string) => {
+    setSelectedSectionBId(targetId);
+    const targetEl = sectionRefsB.current[targetId];
+    if (targetEl) {
+      targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
+  const handleJumpToSectionA = (targetId: string) => {
+    setSelectedSectionAId(targetId);
+    const targetEl = sectionRefsA.current[targetId];
+    if (targetEl) {
+      targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
   // Click on section A with Synchronized Auto-Scroll to linked section in B
   const handleSelectSectionA = (secAId: string) => {
     setSelectedSectionAId(secAId);
     if (!analysisResult) return;
 
-    // Find linked section in B
+    // First try matched_section_id on the section itself
+    const secA = analysisResult.sections_a.find(s => s.id === secAId);
+    if (secA?.matched_section_id) {
+      handleJumpToSectionB(secA.matched_section_id);
+      return;
+    }
+
+    // Fallback: Find linked section in B from links array
     const link = analysisResult.links.find(l => l.source_section_id === secAId);
     if (link && link.target_section_id) {
-      setSelectedSectionBId(link.target_section_id);
-      const targetEl = sectionRefsB.current[link.target_section_id];
-      if (targetEl) {
-        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      handleJumpToSectionB(link.target_section_id);
+    }
+  };
+
+  const handleSelectSectionB = (secBId: string) => {
+    setSelectedSectionBId(secBId);
+    if (!analysisResult) return;
+
+    const secB = analysisResult.sections_b.find(s => s.id === secBId);
+    if (secB?.matched_section_id) {
+      handleJumpToSectionA(secB.matched_section_id);
+      return;
+    }
+
+    const link = analysisResult.links.find(l => l.target_section_id === secBId);
+    if (link && link.source_section_id) {
+      handleJumpToSectionA(link.source_section_id);
     }
   };
 
@@ -1590,11 +1646,11 @@ export function CrossReferencePage() {
               </div>
             )}
 
-            {/* TAB 4: SIDE-BY-SIDE READER & REDLINE DIFF WITH SYNCHRONIZED SEARCH */}
+            {/* TAB 4: SIDE-BY-SIDE READER & REDLINE DIFF WITH SYNCHRONIZED SEARCH & SMART CLAUSE CARDS */}
             {activeTab === 'reader' && (
               <div className="flex flex-col gap-3">
-                {/* Search Bar & Diff Toggle Controls */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
+                {/* Search Bar, Filter Pills & Mode Toggle Controls */}
+                <div className="flex flex-col md:flex-row items-center justify-between gap-3 p-3.5 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] shadow-xs">
                   {/* Search Query */}
                   <div className="relative flex-1 w-full">
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
@@ -1602,8 +1658,8 @@ export function CrossReferencePage() {
                       type="text"
                       value={readerSearchQuery}
                       onChange={(e) => setReaderSearchQuery(e.target.value)}
-                      placeholder="Search keywords across both documents (e.g. payment, approval, liability, 30 days)..."
-                      className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                      placeholder="Search keywords, rules, or SLAs across both documents (e.g. 7 days, approval, termination)..."
+                      className="w-full pl-9 pr-8 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
                     />
                     {readerSearchQuery && (
                       <button
@@ -1615,143 +1671,507 @@ export function CrossReferencePage() {
                     )}
                   </div>
 
+                  {/* Filter Pills */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => setReaderFilter('all')}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                        readerFilter === 'all'
+                          ? 'bg-[var(--accent)] text-white shadow-xs'
+                          : 'bg-[var(--bg-primary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)]'
+                      }`}
+                    >
+                      All Clauses ({analysisResult.sections_a.length})
+                    </button>
+                    <button
+                      onClick={() => setReaderFilter('metrics')}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                        readerFilter === 'metrics'
+                          ? 'bg-[var(--accent)] text-white shadow-xs'
+                          : 'bg-[var(--bg-primary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)]'
+                      }`}
+                    >
+                      Rules & Metrics
+                    </button>
+                    <button
+                      onClick={() => setReaderFilter('linked')}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                        readerFilter === 'linked'
+                          ? 'bg-[var(--accent)] text-white shadow-xs'
+                          : 'bg-[var(--bg-primary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)]'
+                      }`}
+                    >
+                      Linked Counterparts
+                    </button>
+                  </div>
+
                   {/* Mode Toggle: Split View vs Redline Diff */}
-                  <div className="inline-flex p-0.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs font-semibold shrink-0">
+                  <div className="inline-flex p-1 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs font-semibold shrink-0">
                     <button
                       onClick={() => setReaderMode('split')}
-                      className={`px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${readerMode === 'split' ? 'bg-[var(--accent)] text-white shadow-xs' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                        readerMode === 'split' ? 'bg-[var(--accent)] text-white shadow-xs' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                      }`}
                     >
                       <SplitSquareVertical size={13} />
-                      <span>Split Reader</span>
+                      <span>Smart Split Reader</span>
                     </button>
                     <button
                       onClick={() => setReaderMode('redline')}
-                      className={`px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${readerMode === 'redline' ? 'bg-[var(--accent)] text-white shadow-xs' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                        readerMode === 'redline' ? 'bg-[var(--accent)] text-white shadow-xs' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                      }`}
                     >
                       <Diff size={13} />
-                      <span>Redline Diff</span>
+                      <span>Clause Redline Diff</span>
                     </button>
                   </div>
                 </div>
 
                 {/* Reader Content */}
                 {readerMode === 'split' ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-[650px]">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-[720px]">
                     {/* DOC A PANE */}
                     <div className="p-4 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex flex-col overflow-hidden shadow-xs">
                       <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)] mb-3">
-                        <span className="text-xs font-bold text-[var(--accent)] truncate">
-                          Doc 1: {analysisResult.doc_a.filename}
-                        </span>
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="w-2.5 h-2.5 rounded-full bg-[var(--accent)] shrink-0" />
+                          <span className="text-xs font-bold text-[var(--accent)] truncate">
+                            Doc 1: {analysisResult.doc_a.filename}
+                          </span>
+                        </div>
                         <span className="text-[10px] text-[var(--text-muted)] font-medium">
-                          {analysisResult.sections_a.length} Sections (Click to Sync)
+                          {analysisResult.sections_a.length} Clauses (Click to Cross-Link)
                         </span>
                       </div>
 
                       <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-                        {analysisResult.sections_a.map((sec) => (
-                          <div
-                            key={sec.id}
-                            onClick={() => handleSelectSectionA(sec.id)}
-                            className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
-                              selectedSectionAId === sec.id
-                                ? 'border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_8%,transparent)] ring-1 ring-[var(--accent)]'
-                                : 'border-[var(--border-subtle)] bg-[var(--bg-primary)]/50 hover:border-[var(--text-muted)]'
-                            }`}
-                          >
-                            <div className="font-bold text-[var(--text-primary)] mb-1 flex items-center justify-between">
-                              <span>{sec.heading}</span>
-                              {selectedSectionAId === sec.id && (
-                                <span className="text-[9px] font-bold text-[var(--accent)] uppercase">Active Link</span>
-                              )}
-                            </div>
-                            <div className="text-[var(--text-secondary)] whitespace-pre-wrap leading-relaxed line-clamp-6">
-                              {renderHighlightedContent(sec.content, readerSearchQuery)}
-                            </div>
-                          </div>
-                        ))}
+                        {analysisResult.sections_a
+                          .filter((sec) => {
+                            if (readerSearchQuery.trim()) {
+                              const q = readerSearchQuery.toLowerCase();
+                              const match =
+                                sec.heading.toLowerCase().includes(q) ||
+                                sec.content.toLowerCase().includes(q) ||
+                                (sec.summary && sec.summary.toLowerCase().includes(q)) ||
+                                (sec.key_points && sec.key_points.some((kp) => kp.toLowerCase().includes(q)));
+                              if (!match) return false;
+                            }
+                            if (readerFilter === 'metrics') return sec.key_points && sec.key_points.length > 0;
+                            if (readerFilter === 'linked') return Boolean(sec.matched_heading);
+                            return true;
+                          })
+                          .map((sec, idx) => {
+                            const isSelected = selectedSectionAId === sec.id;
+                            const isExpanded = Boolean(expandedSections[sec.id]);
+
+                            return (
+                              <div
+                                key={sec.id}
+                                ref={(el) => {
+                                  sectionRefsA.current[sec.id] = el;
+                                }}
+                                onClick={() => handleSelectSectionA(sec.id)}
+                                className={`p-4 rounded-xl border text-xs cursor-pointer transition-all flex flex-col gap-2.5 ${
+                                  isSelected
+                                    ? 'border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_8%,transparent)] ring-1 ring-[var(--accent)] shadow-xs'
+                                    : 'border-[var(--border-subtle)] bg-[var(--bg-primary)]/60 hover:border-[var(--accent)]/50'
+                                }`}
+                              >
+                                {/* Header: Section Number, Title & Status */}
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-5 h-5 rounded-md bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] text-[var(--accent)] font-bold text-[10px] flex items-center justify-center shrink-0">
+                                      §{idx + 1}
+                                    </span>
+                                    <h4 className="font-bold text-xs sm:text-sm text-[var(--text-primary)] leading-tight">
+                                      {sec.heading}
+                                    </h4>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    {sec.alignment_status && (
+                                      <span
+                                        className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                                          sec.alignment_status === 'conflict' || sec.alignment_status === 'contradiction'
+                                            ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+                                            : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                                        }`}
+                                      >
+                                        {sec.alignment_status}
+                                      </span>
+                                    )}
+                                    {isSelected && (
+                                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[var(--accent)] text-white uppercase tracking-wider">
+                                        Active Link
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* 💡 Informative Mandate / Scope Banner */}
+                                {sec.summary && (
+                                  <div className="p-2.5 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-primary)] font-medium leading-relaxed flex items-start gap-2 shadow-xs">
+                                    <Sparkles size={13} className="text-[var(--accent)] shrink-0 mt-0.5" />
+                                    <div className="flex-1">
+                                      <span className="font-bold text-[var(--accent)] block text-[10px] uppercase tracking-wider mb-0.5">
+                                        Clause Scope & Purpose:
+                                      </span>
+                                      <span>{sec.summary}</span>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* 🏷️ Extracted Operational Metrics & Governance Chips */}
+                                {sec.key_points && sec.key_points.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {sec.key_points.map((pt, pIdx) => (
+                                      <span
+                                        key={pIdx}
+                                        className="px-2 py-0.5 rounded-md bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-subtle)] text-[10px] font-semibold flex items-center gap-1"
+                                      >
+                                        {pt}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* ↔ Cross-Doc Counterpart Correlation Link */}
+                                {sec.matched_heading && (
+                                  <div
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (sec.matched_section_id) handleJumpToSectionB(sec.matched_section_id);
+                                    }}
+                                    className="p-2 px-2.5 rounded-lg bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] hover:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] border border-[color-mix(in_srgb,var(--accent)_28%,transparent)] text-[11px] text-[var(--accent)] font-semibold flex items-center justify-between cursor-pointer transition-colors"
+                                    title="Click to jump to this matching clause in Doc 2"
+                                  >
+                                    <span className="truncate flex items-center gap-1.5">
+                                      <GitCompare size={13} className="shrink-0" />
+                                      <span className="truncate">Matches in Doc 2: <strong>{sec.matched_heading}</strong></span>
+                                    </span>
+                                    <span className="text-[10px] underline flex items-center gap-0.5 shrink-0 font-bold ml-2">
+                                      Jump <ArrowRight size={10} />
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Formatted Clause Text with Expand/Collapse */}
+                                <div
+                                  className={`text-[var(--text-secondary)] leading-relaxed text-xs transition-all ${
+                                    isExpanded ? 'whitespace-pre-line' : 'line-clamp-4'
+                                  }`}
+                                >
+                                  {renderHighlightedContent(sec.content, readerSearchQuery)}
+                                </div>
+
+                                {/* Action Bar Footer */}
+                                <div className="flex items-center justify-between pt-2 border-t border-[var(--border-subtle)]">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleSectionExpand(sec.id);
+                                    }}
+                                    className="text-[11px] font-bold text-[var(--accent)] hover:underline flex items-center gap-1 cursor-pointer"
+                                  >
+                                    {isExpanded ? (
+                                      <>
+                                        <ChevronUp size={12} /> <span>Collapse</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <ChevronDown size={12} /> <span>Read Full Clause</span>
+                                      </>
+                                    )}
+                                  </button>
+
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleCopyText(sec.content, sec.id);
+                                      }}
+                                      className="px-2 py-0.5 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                                      title="Copy clause text"
+                                    >
+                                      {copiedId === sec.id ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                                      <span>{copiedId === sec.id ? 'Copied' : 'Copy'}</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleAskAboutSection(sec, 'Doc 1');
+                                      }}
+                                      className="px-2.5 py-1 rounded-md bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] hover:bg-[color-mix(in_srgb,var(--accent)_24%,transparent)] text-[var(--accent)] font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
+                                      title="Ask Copilot about this clause"
+                                    >
+                                      <MessageSquare size={11} />
+                                      <span>Ask AI</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                       </div>
                     </div>
 
                     {/* DOC B PANE */}
                     <div className="p-4 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex flex-col overflow-hidden shadow-xs">
                       <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)] mb-3">
-                        <span className="text-xs font-bold text-[var(--accent)] truncate">
-                          Doc 2: {analysisResult.doc_b.filename}
-                        </span>
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                          <span className="text-xs font-bold text-[var(--accent)] truncate">
+                            Doc 2: {analysisResult.doc_b.filename}
+                          </span>
+                        </div>
                         <span className="text-[10px] text-[var(--text-muted)] font-medium">
-                          {analysisResult.sections_b.length} Sections
+                          {analysisResult.sections_b.length} Clauses (Click to Cross-Link)
                         </span>
                       </div>
 
                       <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-                        {analysisResult.sections_b.map((sec) => (
-                          <div
-                            key={sec.id}
-                            ref={(el) => { sectionRefsB.current[sec.id] = el; }}
-                            onClick={() => setSelectedSectionBId(sec.id)}
-                            className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
-                              selectedSectionBId === sec.id
-                                ? 'border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_8%,transparent)] ring-1 ring-[var(--accent)]'
-                                : 'border-[var(--border-subtle)] bg-[var(--bg-primary)]/50 hover:border-[var(--text-muted)]'
-                            }`}
-                          >
-                            <div className="font-bold text-[var(--text-primary)] mb-1 flex items-center justify-between">
-                              <span>{sec.heading}</span>
-                              {selectedSectionBId === sec.id && (
-                                <span className="text-[9px] font-bold text-[var(--accent)] uppercase">Synchronized</span>
-                              )}
-                            </div>
-                            <div className="text-[var(--text-secondary)] whitespace-pre-wrap leading-relaxed line-clamp-6">
-                              {renderHighlightedContent(sec.content, readerSearchQuery)}
-                            </div>
-                          </div>
-                        ))}
+                        {analysisResult.sections_b
+                          .filter((sec) => {
+                            if (readerSearchQuery.trim()) {
+                              const q = readerSearchQuery.toLowerCase();
+                              const match =
+                                sec.heading.toLowerCase().includes(q) ||
+                                sec.content.toLowerCase().includes(q) ||
+                                (sec.summary && sec.summary.toLowerCase().includes(q)) ||
+                                (sec.key_points && sec.key_points.some((kp) => kp.toLowerCase().includes(q)));
+                              if (!match) return false;
+                            }
+                            if (readerFilter === 'metrics') return sec.key_points && sec.key_points.length > 0;
+                            if (readerFilter === 'linked') return Boolean(sec.matched_heading);
+                            return true;
+                          })
+                          .map((sec, idx) => {
+                            const isSelected = selectedSectionBId === sec.id;
+                            const isExpanded = Boolean(expandedSections[sec.id]);
+
+                            return (
+                              <div
+                                key={sec.id}
+                                ref={(el) => {
+                                  sectionRefsB.current[sec.id] = el;
+                                }}
+                                onClick={() => handleSelectSectionB(sec.id)}
+                                className={`p-4 rounded-xl border text-xs cursor-pointer transition-all flex flex-col gap-2.5 ${
+                                  isSelected
+                                    ? 'border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_8%,transparent)] ring-1 ring-[var(--accent)] shadow-xs'
+                                    : 'border-[var(--border-subtle)] bg-[var(--bg-primary)]/60 hover:border-[var(--accent)]/50'
+                                }`}
+                              >
+                                {/* Header: Section Number, Title & Status */}
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-5 h-5 rounded-md bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] text-[var(--accent)] font-bold text-[10px] flex items-center justify-center shrink-0">
+                                      §{idx + 1}
+                                    </span>
+                                    <h4 className="font-bold text-xs sm:text-sm text-[var(--text-primary)] leading-tight">
+                                      {sec.heading}
+                                    </h4>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    {sec.alignment_status && (
+                                      <span
+                                        className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                                          sec.alignment_status === 'conflict' || sec.alignment_status === 'contradiction'
+                                            ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+                                            : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                                        }`}
+                                      >
+                                        {sec.alignment_status}
+                                      </span>
+                                    )}
+                                    {isSelected && (
+                                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[var(--accent)] text-white uppercase tracking-wider">
+                                        Synchronized
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* 💡 Informative Mandate / Scope Banner */}
+                                {sec.summary && (
+                                  <div className="p-2.5 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-primary)] font-medium leading-relaxed flex items-start gap-2 shadow-xs">
+                                    <Sparkles size={13} className="text-[var(--accent)] shrink-0 mt-0.5" />
+                                    <div className="flex-1">
+                                      <span className="font-bold text-[var(--accent)] block text-[10px] uppercase tracking-wider mb-0.5">
+                                        Clause Scope & Purpose:
+                                      </span>
+                                      <span>{sec.summary}</span>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* 🏷️ Extracted Operational Metrics & Governance Chips */}
+                                {sec.key_points && sec.key_points.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {sec.key_points.map((pt, pIdx) => (
+                                      <span
+                                        key={pIdx}
+                                        className="px-2 py-0.5 rounded-md bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-subtle)] text-[10px] font-semibold flex items-center gap-1"
+                                      >
+                                        {pt}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* ↔ Cross-Doc Counterpart Correlation Link */}
+                                {sec.matched_heading && (
+                                  <div
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (sec.matched_section_id) handleJumpToSectionA(sec.matched_section_id);
+                                    }}
+                                    className="p-2 px-2.5 rounded-lg bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] hover:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] border border-[color-mix(in_srgb,var(--accent)_28%,transparent)] text-[11px] text-[var(--accent)] font-semibold flex items-center justify-between cursor-pointer transition-colors"
+                                    title="Click to jump to this matching clause in Doc 1"
+                                  >
+                                    <span className="truncate flex items-center gap-1.5">
+                                      <GitCompare size={13} className="shrink-0" />
+                                      <span className="truncate">Matches in Doc 1: <strong>{sec.matched_heading}</strong></span>
+                                    </span>
+                                    <span className="text-[10px] underline flex items-center gap-0.5 shrink-0 font-bold ml-2">
+                                      Jump <ArrowRight size={10} />
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Formatted Clause Text with Expand/Collapse */}
+                                <div
+                                  className={`text-[var(--text-secondary)] leading-relaxed text-xs transition-all ${
+                                    isExpanded ? 'whitespace-pre-line' : 'line-clamp-4'
+                                  }`}
+                                >
+                                  {renderHighlightedContent(sec.content, readerSearchQuery)}
+                                </div>
+
+                                {/* Action Bar Footer */}
+                                <div className="flex items-center justify-between pt-2 border-t border-[var(--border-subtle)]">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleSectionExpand(sec.id);
+                                    }}
+                                    className="text-[11px] font-bold text-[var(--accent)] hover:underline flex items-center gap-1 cursor-pointer"
+                                  >
+                                    {isExpanded ? (
+                                      <>
+                                        <ChevronUp size={12} /> <span>Collapse</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <ChevronDown size={12} /> <span>Read Full Clause</span>
+                                      </>
+                                    )}
+                                  </button>
+
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleCopyText(sec.content, sec.id);
+                                      }}
+                                      className="px-2 py-0.5 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                                      title="Copy clause text"
+                                    >
+                                      {copiedId === sec.id ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                                      <span>{copiedId === sec.id ? 'Copied' : 'Copy'}</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleAskAboutSection(sec, 'Doc 2');
+                                      }}
+                                      className="px-2.5 py-1 rounded-md bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] hover:bg-[color-mix(in_srgb,var(--accent)_24%,transparent)] text-[var(--accent)] font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
+                                      title="Ask Copilot about this clause"
+                                    >
+                                      <MessageSquare size={11} />
+                                      <span>Ask AI</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                       </div>
                     </div>
                   </div>
                 ) : (
                   /* REDLINE VISUAL DIFF MODE */
-                  <div className="p-5 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] h-[650px] overflow-y-auto flex flex-col gap-4 shadow-xs">
+                  <div className="p-5 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] h-[720px] overflow-y-auto flex flex-col gap-4 shadow-xs">
                     <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
                       <div>
                         <h4 className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-2">
                           <Diff size={14} className="text-[var(--accent)]" />
-                          Word-Level Redline & Semantic Diff
+                          Clause-by-Clause Semantic & Redline Diff
                         </h4>
-                        <p className="text-[11px] text-[var(--text-muted)]">
-                          Showing clause evolution from {analysisResult.doc_a.filename} to {analysisResult.doc_b.filename}.
+                        <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                          Side-by-side textual evolution from {analysisResult.doc_a.filename} to {analysisResult.doc_b.filename}.
                         </p>
                       </div>
                       <div className="flex items-center gap-3 text-[11px] font-semibold">
-                        <span className="text-rose-500 line-through bg-rose-500/10 px-2 py-0.5 rounded">- Removed from Doc 1</span>
-                        <span className="text-emerald-500 underline bg-emerald-500/10 px-2 py-0.5 rounded">+ Added in Doc 2</span>
+                        <span className="text-rose-500 line-through bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                          - Removed from Doc 1
+                        </span>
+                        <span className="text-emerald-500 underline bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                          + Added in Doc 2
+                        </span>
                       </div>
                     </div>
 
                     <div className="space-y-4">
                       {analysisResult.sections_a.map((secA, idx) => {
-                        const secB = analysisResult.sections_b[idx] || analysisResult.sections_b[0];
+                        const secB = secA.matched_section_id
+                          ? analysisResult.sections_b.find((s) => s.id === secA.matched_section_id) || analysisResult.sections_b[idx]
+                          : analysisResult.sections_b[idx] || analysisResult.sections_b[0];
                         const diff = computeWordDiff(secA.content, secB?.content || '');
 
                         return (
-                          <div key={secA.id} className="p-4 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs flex flex-col gap-2">
-                            <div className="font-bold text-[var(--text-primary)] border-b border-[var(--border-subtle)] pb-1.5 flex items-center justify-between">
-                              <span>Section {idx + 1}: {secA.heading}</span>
-                              <span className="text-[10px] text-[var(--text-muted)] font-normal">Comparing against {secB?.heading}</span>
+                          <div
+                            key={secA.id}
+                            className="p-4 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs flex flex-col gap-3 shadow-xs"
+                          >
+                            <div className="font-bold text-[var(--text-primary)] border-b border-[var(--border-subtle)] pb-2 flex items-center justify-between">
+                              <span className="flex items-center gap-2 text-sm">
+                                <span className="w-5 h-5 rounded-md bg-[var(--accent)] text-white text-[10px] flex items-center justify-center font-bold">
+                                  {idx + 1}
+                                </span>
+                                {secA.heading}
+                              </span>
+                              <span className="text-[10px] text-[var(--text-muted)] font-normal">
+                                Compared against: <strong className="text-[var(--text-primary)]">{secB?.heading}</strong>
+                              </span>
                             </div>
-                            <div className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
+
+                            <div className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap p-3 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
                               {diff.map((part, pIdx) => {
                                 if (part.type === 'removed') {
                                   return (
-                                    <span key={pIdx} className="bg-rose-500/15 text-rose-600 dark:text-rose-400 line-through decoration-rose-500 px-0.5 rounded">
+                                    <span
+                                      key={pIdx}
+                                      className="bg-rose-500/15 text-rose-600 dark:text-rose-400 line-through decoration-rose-500 px-0.5 rounded"
+                                    >
                                       {part.text}
                                     </span>
                                   );
                                 }
                                 if (part.type === 'added') {
                                   return (
-                                    <span key={pIdx} className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold underline decoration-emerald-500 px-0.5 rounded">
+                                    <span
+                                      key={pIdx}
+                                      className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold underline decoration-emerald-500 px-0.5 rounded"
+                                    >
                                       {part.text}
                                     </span>
                                   );
