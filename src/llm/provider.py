@@ -236,9 +236,9 @@ class GroqProvider(LLMProvider):
     ) -> Generator[Dict[str, Any], None, None]:
         import time
         temp = temperature if temperature is not None else 0.2
-        # Groq Free Tier has a strict 1000 OTPM (output tokens/min) limit.
-        # Defaulting to 500 max_tokens guarantees we stay safely within 1000 OTPM even during active conversations.
-        max_tok = min(max_tokens, 500) if max_tokens is not None else 500
+        # Provide full, un-truncated output capacity so detailed answers, charts, and diagrams are never cut off
+        default_max = getattr(settings, "MAX_OUTPUT_TOKENS", 3000)
+        max_tok = max_tokens if max_tokens is not None else default_max
 
         # 1. Local Data Masking (Sanitizes sensitive entities locally)
         masked_prompt, reverse_map = self.masker.mask(prompt)
@@ -259,13 +259,13 @@ class GroqProvider(LLMProvider):
                 # Strictly use only user's chosen Qwen model (preserves model integrity and personality)
                 max_attempts = 4
                 for attempt in range(max_attempts):
-                    # For retries, step down max_tokens to fit inside the recharging token bucket
+                    # For retries, maintain ample capacity for complete answers
                     if attempt == 0:
                         current_max = max_tok
                     elif attempt == 1:
-                        current_max = min(max_tok, 350)
+                        current_max = min(max_tok, 2500)
                     else:
-                        current_max = min(max_tok, 250)
+                        current_max = min(max_tok, 2000)
 
                     payload = {
                         "model": self.model,
@@ -304,6 +304,7 @@ class GroqProvider(LLMProvider):
                     }
                     return
 
+                final_status = "COMPLETED"
                 try:
                     for line in response.iter_lines():
                         if not line:
@@ -316,6 +317,9 @@ class GroqProvider(LLMProvider):
                                 chunk_json = json.loads(raw_data)
                                 choices = chunk_json.get("choices", [])
                                 if choices:
+                                    finish_reason = choices[0].get("finish_reason")
+                                    if finish_reason == "length":
+                                        final_status = "MAX_TOKENS"
                                     delta = choices[0].get("delta", {})
                                     content_part = delta.get("content", "")
                                     if content_part:
@@ -331,7 +335,7 @@ class GroqProvider(LLMProvider):
                     if leftover:
                         yield {"type": "text", "content": leftover}
 
-                    yield {"type": "status", "status": "COMPLETED"}
+                    yield {"type": "status", "status": final_status}
                 finally:
                     if response_ctx:
                         response_ctx.__exit__(None, None, None)

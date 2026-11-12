@@ -222,7 +222,8 @@ class ChatService:
             
             try:
                 current_prompt = prompt
-                max_continuations = 0
+                # Allow seamless auto-continuation if generation reaches token capacity
+                max_continuations = 2
                 continuations = 0
                 
                 # Extract used sources

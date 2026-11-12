@@ -79,11 +79,13 @@ class PromptBuilder:
             "CAPABILITY: High-precision parsing, reasoning, and synthesis across documents (PDF, DOCX, XLSX, CSV, TXT, MD) and technical concepts.\n"
             "EXECUTIVE 3-TIER ANSWER ARCHITECTURE:\n"
             "1. DIRECT VERDICT / TAKEAWAY: Always lead with the direct answer or key takeaway in 1 to 2 crisp, bolded sentences.\n"
-            "2. STRUCTURED SYSTEMATIC BREAKDOWN: Follow immediately with bulleted points, numbered phases, or a structured Markdown comparison table whenever comparing entities, numerical data, timelines, or specifications.\n"
-            "3. EVIDENCE & EXACT CONTEXT: Anchor factual statements with precision. Quote key operational numbers, conditions, and exact definitions without conversational filler.\n"
-            "SPEED & HIGH IMPACT: Zero preamble, zero conversational pleasantries (no 'Sure, here is...', 'Certainly', 'Based on your request'). Deliver the core response immediately.\n"
+            "2. STRUCTURED SYSTEMATIC BREAKDOWN: Follow immediately with exhaustive bulleted points, numbered phases, or structured Markdown comparison tables whenever comparing entities, numerical data, timelines, or specifications.\n"
+            "3. EVIDENCE & EXACT CONTEXT: Anchor factual statements with precision. Quote key operational numbers, conditions, and exact definitions.\n"
+            "COMPLETENESS MANDATE: Never provide partial, half-finished, or truncated answers in any format (text, tables, or graphs). Every explanation, process flow, and diagram must be fully detailed from start to finish. If explaining a workflow or architecture, cover every single stage. If presenting data, include all relevant metrics without cutting off.\n"
+            "VISUAL DIAGRAMS & FLOWCHARTS: When user asks for a diagram, flowchart, DFD, process flow, or graph, provide a complete, syntactically valid Mermaid block (```mermaid ... ```) using 'graph TD' or 'flowchart TD' with clean node quotes like A[\"Step 1: Description\"] --> B[\"Step 2: Action\"]. Always completely close code fences.\n"
+            "SPEED & HIGH IMPACT: Zero conversational pleasantries (no 'Sure, here is...', 'Certainly', 'Based on your request'). Deliver the core response immediately.\n"
             "TABLE SYNTHESIS: Whenever user requests lists of parameters, policies, comparisons, financial figures, or steps, format them using clean, standard Markdown tables for executive readability.\n"
-            "FORMATTING: Use bold key terms (`**term**`), clean section headers (`### Section`), and concise bullet points. Maintain complete, uninterrupted sentences."
+            "FORMATTING: Use bold key terms (`**term**`), clean section headers (`### Section`), and structured bullet points. Maintain complete, uninterrupted sentences."
         )
 
     def build_prompt(self, messages: List[Dict[str, str]], retrieved_context: str = "", memory_context: str = "", system_prompt: str = "", verified_context: str = "", language: str = "en") -> str:
@@ -105,7 +107,7 @@ class PromptBuilder:
                     "Extract and report all relevant operational steps, names, roles, procedures, and data clearly present in the context.\n"
                     "Tolerance for variations: If the user query contains spelling mistakes, phonetic variations, or abbreviations for concepts present in the document (e.g., 'exclation' or 'escaltion' for 'escalation'), map them to the corresponding context and answer fully.\n"
                     "If the answer is not clearly supported by the context, say 'I couldn\'t find that in the document.'\n"
-                    "Be evidence-first: answer in a short, direct sentence and state uncertainty clearly where applicable.\n"
+                    "Be evidence-first and comprehensive: provide complete, exhaustive explanations backed by context and state uncertainty clearly where information is missing from the document.\n"
                     "If conversation history conflicts with this retrieved document context regarding facts within the documents, the document context takes absolute precedence."
                 )
                 sys_parts.append(
