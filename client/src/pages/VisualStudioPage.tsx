@@ -47,7 +47,7 @@ import {
   Users,
 } from 'lucide-react';
 import clsx from 'clsx';
-import { useAuth } from '../contexts/AuthContext';
+import { AuthContext } from '../contexts/AuthContext';
 import { DiagramCanvas, type DiagramCanvasRef } from '../components/studio/DiagramCanvas';
 import { useTheme } from '../contexts/ThemeContext';
 import { applyTemplateToDataset, scaleTemplateToStepCount, sanitizeDiagramBlueprint } from '../components/studio/templateMapper';
@@ -243,7 +243,8 @@ export function VisualStudioPage() {
     diagram && ((Array.isArray(diagram.nodes) && diagram.nodes.length > 0) || diagram.chartData)
   );
 
-  const { userId } = useAuth();
+  const authContext = React.useContext(AuthContext);
+  const userId = authContext?.userId;
   const [projectsModalTab, setProjectsModalTab] = useState<'my_projects' | 'community_templates'>('my_projects');
 
   // Saved Template Blueprints for Cross-Dataset Generation

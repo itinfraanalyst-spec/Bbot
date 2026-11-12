@@ -3,6 +3,8 @@ import {
   parseDatasetText,
   applyTemplateToDataset,
   mapDatasetItemsToTemplate,
+  sanitizeDiagramBlueprint,
+  scaleTemplateToStepCount,
   SAMPLE_DATASETS,
 } from '../templateMapper';
 import type { DiagramSpec } from '../types';
@@ -150,5 +152,98 @@ describe('templateMapper - Cross-Dataset Template Reuse', () => {
     expect(result.nodes.length).toBe(items.length);
     expect(result.nodes[0].label).toBe('Data Ingestion & Sinks');
     expect(result.edges.length).toBe(items.length - 1);
+  });
+
+  it('sanitizeDiagramBlueprint strictly strips User A proprietary data while preserving 100% of the design', () => {
+    const userAConfidentialDiagram: DiagramSpec = {
+      diagramType: 'process_flow',
+      title: 'Top Secret User A Pipeline',
+      summary: 'Confidential client accounts: Acme Corp',
+      nodes: [
+        {
+          id: 'n1',
+          label: 'User A Secret Node 1',
+          sublabel: 'Confidential formula X',
+          badge: 'PRIVATE-TOKEN',
+          type: 'start',
+          customStyle: {
+            shape: 'hexagon',
+            borderColor: '#8b5cf6',
+            bgColor: 'rgba(139, 92, 246, 0.15)',
+          },
+        },
+        {
+          id: 'n2',
+          label: 'User A Secret Node 2',
+          sublabel: 'Secret wire transfer $10M',
+          type: 'process',
+          customStyle: {
+            shape: 'card',
+            borderColor: '#06b6d4',
+          },
+        },
+      ],
+      edges: [
+        {
+          id: 'e1',
+          source: 'n1',
+          target: 'n2',
+          label: 'Secret Connection',
+          customStyle: { routing: 'curved', color: '#8b5cf6' },
+        },
+      ],
+    };
+
+    const sanitized = sanitizeDiagramBlueprint(userAConfidentialDiagram, 'Shared Community Blueprint');
+
+    // 1. Data isolation: No proprietary strings exist
+    const jsonStr = JSON.stringify(sanitized);
+    expect(jsonStr).not.toContain('Top Secret User A');
+    expect(jsonStr).not.toContain('Confidential formula X');
+    expect(jsonStr).not.toContain('Secret wire transfer');
+    expect(jsonStr).not.toContain('PRIVATE-TOKEN');
+    expect(jsonStr).not.toContain('Secret Connection');
+
+    // 2. Design preservation: Shapes, colors, and layout are intact
+    expect(sanitized.nodes[0].label).toBe('Initial Stage 1');
+    expect(sanitized.nodes[0].customStyle?.shape).toBe('hexagon');
+    expect(sanitized.nodes[0].customStyle?.borderColor).toBe('#8b5cf6');
+
+    expect(sanitized.nodes[1].label).toBe('Phase 2: Step');
+    expect(sanitized.nodes[1].customStyle?.shape).toBe('card');
+    expect(sanitized.nodes[1].customStyle?.borderColor).toBe('#06b6d4');
+
+    expect(sanitized.edges[0].customStyle?.routing).toBe('curved');
+  });
+
+  it('scaleTemplateToStepCount automatically scales design when data has more or fewer steps', () => {
+    const template: DiagramSpec = {
+      diagramType: 'process_flow',
+      title: '3-Step Design',
+      nodes: [
+        { id: 'n1', label: 'Step 1', customStyle: { shape: 'pill', borderColor: '#06b6d4' } },
+        { id: 'n2', label: 'Step 2', customStyle: { shape: 'card', borderColor: '#8b5cf6' } },
+        { id: 'n3', label: 'Step 3', customStyle: { shape: 'hexagon', borderColor: '#10b981' } },
+      ],
+      edges: [
+        { id: 'e1', source: 'n1', target: 'n2' },
+        { id: 'e2', source: 'n2', target: 'n3' },
+      ],
+    };
+
+    // Scale UP to 5 steps (Data zyada ho)
+    const scaledUp = scaleTemplateToStepCount(template, 5);
+    expect(scaledUp.nodes).toHaveLength(5);
+    expect(scaledUp.edges).toHaveLength(4);
+    // 4th and 5th node interpolate archetype design
+    expect(scaledUp.nodes[3].customStyle?.shape).toBe('pill');
+    expect(scaledUp.nodes[4].customStyle?.shape).toBe('card');
+
+    // Scale DOWN to 2 steps (Data kam ho)
+    const scaledDown = scaleTemplateToStepCount(template, 2);
+    expect(scaledDown.nodes).toHaveLength(2);
+    expect(scaledDown.edges).toHaveLength(1);
+    expect(scaledDown.nodes[0].id).toBe('node_step_1');
+    expect(scaledDown.nodes[1].id).toBe('node_step_2');
   });
 });
