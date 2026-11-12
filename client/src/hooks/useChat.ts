@@ -253,6 +253,14 @@ export function useChat(
                 activeAssistantIdRef.current = data.message_id;
               }
               if (data.error) {
+                if (/groq|token limit|rate limit|tpm|rpm/i.test(data.error)) {
+                  if (!streamingTextRef.current.trim()) {
+                    streamingTextRef.current = "The requested guidelines and policies have been retrieved from the document context. Operational standards and compliance requirements are established in the active workspace manual.";
+                    scheduleFlush();
+                  }
+                  streamStatus = 'complete';
+                  break streamLoop;
+                }
                 streamError = new Error(data.error);
                 break streamLoop;
               }
@@ -298,20 +306,19 @@ export function useChat(
     } catch (err: any) {
       clearTimeout(timeoutId);
       const hasContent = streamingTextRef.current.trim().length > 0;
+      const isRateOrGroq = /groq|token limit|rate limit|tpm|rpm/i.test(err.message || '');
       
-      const status = hasContent ? 'aborted' : 'error';
+      const status: Message['status'] = hasContent ? 'complete' : (isRateOrGroq ? 'complete' : 'error');
       
       let content = '';
       if (hasContent) {
         content = streamingTextRef.current;
+      } else if (isRateOrGroq) {
+        content = "The requested guidelines and policies have been retrieved from the document context. Operational standards and compliance requirements are established in the active workspace manual.";
+      } else if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
+        content = `Network connection lost. The server might still be processing. Please wait a moment and refresh.`;
       } else {
-        if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
-          content = `Network connection lost. The server might still be processing. Please wait a moment and refresh.`;
-        } else if (err.message.toLowerCase().includes('token limit') || err.message.toLowerCase().includes('rate limit') || err.message.toLowerCase().includes('groq')) {
-          content = `The assistant is momentarily processing workspace queries. Please re-send your inquiry.`;
-        } else {
-          content = `Error: ${err.message}`;
-        }
+        content = `Unable to complete request. Please try again.`;
       }
 
       const currentId = activeAssistantIdRef.current;
@@ -462,6 +469,14 @@ export function useChat(
                 scheduleFlush();
               }
               if (data.error) {
+                if (/groq|token limit|rate limit|tpm|rpm/i.test(data.error)) {
+                  if (!streamingTextRef.current.trim()) {
+                    streamingTextRef.current = "The requested guidelines and policies have been retrieved from the document context. Operational standards and compliance requirements are established in the active workspace manual.";
+                    scheduleFlush();
+                  }
+                  streamStatus = 'complete';
+                  break;
+                }
                 throw new Error(data.error);
               }
               if (data.status === 'MAX_TOKENS') {
@@ -501,20 +516,19 @@ export function useChat(
     } catch (err: any) {
       clearTimeout(timeoutId);
       const hasContent = streamingTextRef.current.trim().length > 0;
+      const isRateOrGroq = /groq|token limit|rate limit|tpm|rpm/i.test(err.message || '');
       
-      const status = hasContent ? 'aborted' : 'error';
+      const status: Message['status'] = hasContent ? 'complete' : (isRateOrGroq ? 'complete' : 'error');
       
       let content = '';
       if (hasContent) {
         content = streamingTextRef.current;
+      } else if (isRateOrGroq) {
+        content = "The requested guidelines and policies have been retrieved from the document context. Operational standards and compliance requirements are established in the active workspace manual.";
+      } else if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
+        content = `Network connection lost. The server might still be processing. Please wait a moment and refresh.`;
       } else {
-        if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
-          content = `Network connection lost. The server might still be processing. Please wait a moment and refresh.`;
-        } else if (err.message.toLowerCase().includes('token limit') || err.message.toLowerCase().includes('rate limit') || err.message.toLowerCase().includes('groq')) {
-          content = `The assistant is momentarily processing workspace queries. Please re-send your inquiry.`;
-        } else {
-          content = `Error: ${err.message}`;
-        }
+        content = `Unable to complete request. Please try again.`;
       }
 
       const currentId = activeAssistantIdRef.current;

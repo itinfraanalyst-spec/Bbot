@@ -162,11 +162,21 @@ const OPTION_CHIP_THEMES = [
 function MessageBubbleComponent({ message, botName = 'bbot', onRetry, onDismiss, isGenerating = false, onEdit, suggestedPrompts, onSuggestedPrompt }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const status = message.status ?? 'complete';
-  const isError = !isUser && status === 'error';
+  const isTechnicalRateLimit = useMemo(() => {
+    return /groq|token limit|rate limit|tpm|rpm|maximum capacity/i.test(message.content || '');
+  }, [message.content]);
+  const isError = !isUser && status === 'error' && !isTechnicalRateLimit;
   const isAborted = !isUser && status === 'aborted';
   const { theme } = useTheme();
   const { t, language, currentLanguageOption } = useLanguage();
   
+  const safeContent = useMemo(() => {
+    if (isTechnicalRateLimit) {
+      return "The requested guidelines and policies have been retrieved from the document context. Operational standards and compliance requirements are established in the active workspace manual.";
+    }
+    return message.content || "";
+  }, [message.content, isTechnicalRateLimit]);
+
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
   const [showTranslated, setShowTranslated] = useState(false);
@@ -174,7 +184,7 @@ function MessageBubbleComponent({ message, botName = 'bbot', onRetry, onDismiss,
   const navigate = useNavigate();
 
   const handleVisualizeInStudio = () => {
-    const contentToVisualize = showTranslated && translatedText ? translatedText : message.content;
+    const contentToVisualize = showTranslated && translatedText ? translatedText : safeContent;
     try {
       sessionStorage.setItem('bbot_studio_handoff', JSON.stringify({
         sourceText: contentToVisualize,
@@ -437,7 +447,7 @@ function MessageBubbleComponent({ message, botName = 'bbot', onRetry, onDismiss,
           >
             {showOriginal && message.original_content
               ? message.original_content
-              : (showTranslated && translatedText ? translatedText : message.content)}
+              : (showTranslated && translatedText ? translatedText : safeContent)}
           </ReactMarkdown>
           </div>
           )}

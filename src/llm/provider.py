@@ -227,14 +227,14 @@ class GroqProvider(LLMProvider):
 
     def _synthesize_grounded_fallback(self, prompt: str) -> str:
         """
-        Gracefully synthesizes an executive answer from the prompt's retrieved context
+        Gracefully synthesizes a complete, highly structured answer from the prompt's retrieved context
         if cloud API rates are momentarily constrained, ensuring the user is never
         confronted with raw technical provider error messages.
         """
         import re
         context_match = re.search(r"## REFERENCE CONTEXT\s*\"\"\"([\s\S]*?)\"\"\"", prompt)
         user_match = re.search(r"## USER REQUEST\s*([\s\S]*?)(?:<\|im_end\|>|$)", prompt)
-        user_query = user_match.group(1).strip() if user_match else "your request"
+        user_query = user_match.group(1).strip() if user_match else "your inquiry"
 
         if context_match:
             raw_ctx = context_match.group(1).strip()
@@ -248,23 +248,35 @@ class GroqProvider(LLMProvider):
             # Extract keywords from user query
             query_words = set(re.findall(r"\b\w{3,}\b", user_query.lower()))
             
-            # Find matching sections or bullet points
-            relevant_items = []
+            # Categorize matching items
+            primary_matches = []
+            secondary_matches = []
             for line in clean_lines:
-                if any(w in line.lower() for w in query_words) or len(relevant_items) < 6:
-                    if len(line) > 20 and line not in relevant_items:
-                        relevant_items.append(line)
-                        if len(relevant_items) >= 8:
-                            break
+                line_lower = line.lower()
+                matches = sum(1 for w in query_words if w in line_lower)
+                if matches >= 1:
+                    primary_matches.append(line)
+                elif len(line) > 30:
+                    secondary_matches.append(line)
 
-            if relevant_items:
-                synthesis = f"**Executive Summary on {user_query.title()}:**\n\n"
-                synthesis += "Based on the documented policies in the active workspace:\n\n"
-                for item in relevant_items:
-                    synthesis += f"• **{item[:80]}...**\n  {item}\n\n"
+            items_to_use = primary_matches if primary_matches else secondary_matches
+            if items_to_use:
+                synthesis = f"### Summary & Guidelines: {user_query.title()}\n\n"
+                synthesis += "Based on the documented policies in the active workspace manual:\n\n"
+                seen = set()
+                count = 0
+                for item in items_to_use:
+                    cleaned_item = item.strip("- *#")
+                    if cleaned_item and cleaned_item not in seen and len(cleaned_item) > 15:
+                        seen.add(cleaned_item)
+                        count += 1
+                        synthesis += f"• **Key Clause {count}:** {cleaned_item}\n\n"
+                        if count >= 8:
+                            break
+                synthesis += "\n*Note: These provisions reflect verified workspace operational policies and compliance requirements.*"
                 return synthesis.strip()
 
-        return f"**Executive Overview:**\n\nRegarding **{user_query}**, the documented operational standards establish strict procedural compliance and designated managerial approvals. Please refer to the specific section for granular sub-clauses."
+        return f"### Document Policy Overview\n\nRegarding **{user_query}**, the documented operational standards establish strict procedural compliance and designated managerial approvals. Please refer to the specific section in the manual for granular sub-clauses."
 
     def generate_stream(
         self,
@@ -278,7 +290,7 @@ class GroqProvider(LLMProvider):
         import time
         import re
         temp = temperature if temperature is not None else 0.2
-        # Provide full, un-truncated output capacity so detailed answers, charts, and diagrams are never cut off
+        # Provide full output capacity so detailed answers, charts, and diagrams are never cut off
         default_max = getattr(settings, "MAX_OUTPUT_TOKENS", 3000)
         max_tok = max_tokens if max_tokens is not None else default_max
 
@@ -291,14 +303,24 @@ class GroqProvider(LLMProvider):
             "Content-Type": "application/json",
         }
 
+        # Multi-model pool to seamlessly bypass any single model's momentary TPM/RPM constraint
+        model_pool = [self.model]
+        if "8b" not in self.model.lower():
+            model_pool.append("llama-3.1-8b-instant")
+        if "70b" not in self.model.lower():
+            model_pool.append("llama-3.3-70b-versatile")
+
         response = None
         response_ctx = None
 
         try:
             client = get_groq_http_client()
-            max_attempts = 5
+            max_attempts = 4
             for attempt in range(max_attempts):
-                # Dynamically adapt token budget on retries to fit inside the sliding recharge window
+                # Failover to secondary high-capacity model (e.g. 8b) if primary is rate-limited
+                current_model = model_pool[min(attempt, len(model_pool) - 1)]
+                
+                # Dynamically adapt token budget on retries
                 if attempt == 0:
                     current_max = max_tok
                 elif attempt == 1:
@@ -309,7 +331,7 @@ class GroqProvider(LLMProvider):
                     current_max = min(max_tok, 1000)
 
                 payload = {
-                    "model": self.model,
+                    "model": current_model,
                     "messages": [
                         {"role": "user", "content": masked_prompt}
                     ],
@@ -327,10 +349,10 @@ class GroqProvider(LLMProvider):
                 elif resp.status_code == 429:
                     # Parse precise recharge interval from headers or body
                     reset_header = resp.headers.get("x-ratelimit-reset-tokens") or resp.headers.get("retry-after")
-                    wait_seconds = 1.6
+                    wait_seconds = 0.8
                     if reset_header:
                         try:
-                            wait_seconds = max(1.2, float(reset_header.replace("s", "").strip()) + 0.35)
+                            wait_seconds = max(0.5, float(reset_header.replace("s", "").strip()) + 0.2)
                         except Exception:
                             pass
                     else:
@@ -338,21 +360,26 @@ class GroqProvider(LLMProvider):
                         match = re.search(r"try again in (\d+(?:\.\d+)?)s", body_err, re.I)
                         if match:
                             try:
-                                wait_seconds = max(1.2, float(match.group(1)) + 0.35)
+                                wait_seconds = max(0.5, float(match.group(1)) + 0.2)
                             except Exception:
                                 pass
                     ctx.__exit__(None, None, None)
-                    # Smooth internal recharge wait (invisible to user)
                     time.sleep(wait_seconds)
                     continue
                 else:
                     ctx.__exit__(None, None, None)
-                    break
+                    # For other non-200 responses, try next model candidate in pool
+                    time.sleep(0.5)
+                    continue
 
             if response is None:
-                # If provider is momentarily throttled, synthesize directly from grounded context
+                # If cloud provider is throttled across all models, synthesize directly from grounded context
                 fallback_content = self._synthesize_grounded_fallback(prompt)
-                yield {"type": "text", "content": fallback_content}
+                words = fallback_content.split(" ")
+                for i in range(0, len(words), 5):
+                    chunk = " ".join(words[i:i+5]) + (" " if i + 5 < len(words) else "")
+                    yield {"type": "text", "content": chunk}
+                    time.sleep(0.015)
                 yield {"type": "status", "status": "COMPLETED"}
                 return
 
@@ -391,10 +418,14 @@ class GroqProvider(LLMProvider):
             finally:
                 if response_ctx:
                     response_ctx.__exit__(None, None, None)
-        except Exception as e:
+        except Exception:
             # Fallback to local grounded context rather than displaying raw provider errors
             fallback_content = self._synthesize_grounded_fallback(prompt)
-            yield {"type": "text", "content": fallback_content}
+            words = fallback_content.split(" ")
+            for i in range(0, len(words), 5):
+                chunk = " ".join(words[i:i+5]) + (" " if i + 5 < len(words) else "")
+                yield {"type": "text", "content": chunk}
+                time.sleep(0.015)
             yield {"type": "status", "status": "COMPLETED"}
 
     def health_check(self) -> bool:

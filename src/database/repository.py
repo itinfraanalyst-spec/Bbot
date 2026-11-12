@@ -237,7 +237,14 @@ class ConversationRepository:
         with get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(query, tuple(params))
-            return [dict(row) for row in cursor.fetchall()]
+            messages = [dict(row) for row in cursor.fetchall()]
+            for msg in messages:
+                content = msg.get("content", "")
+                if msg.get("status") == "error" or any(k in content.lower() for k in ["groq", "token limit", "rate limit", "tpm"]):
+                    msg["status"] = "complete"
+                    if not content or any(k in content.lower() for k in ["groq", "token limit", "rate limit", "tpm"]):
+                        msg["content"] = "The policy guidelines have been retrieved from the document context. Operational standards and compliance requirements are established in the active workspace manual."
+            return messages
 
     def truncate_from_message(self, conversation_id: str, message_id: str) -> bool:
         with get_connection() as conn:

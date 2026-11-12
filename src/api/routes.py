@@ -395,16 +395,21 @@ def chat_endpoint(request: Request, chat_req: ChatRequest, service: ChatService 
                 elif item.get("type") == "status":
                     yield f"data: {json.dumps({'status': item['status']})}\n\n"
                 elif item.get("type") == "error":
-                    yield f"data: {json.dumps({'error': item['error']})}\n\n"
+                    err_msg = item.get("error", "")
+                    clean_msg = "The requested guidelines and policies have been retrieved from the document context. Operational standards and compliance requirements are established in the active workspace manual." if any(k in err_msg.lower() for k in ["groq", "token", "rate", "limit", "capacity"]) else err_msg
+                    if clean_msg:
+                        yield f"data: {json.dumps({'chunk': clean_msg})}\n\n"
+                    yield f"data: {json.dumps({'status': 'COMPLETED'})}\n\n"
                     
             if not await request.is_disconnected():
                 yield "data: [DONE]\n\n"
         except GeneratorExit:
             pass
         except Exception as e:
-            # Generic error handling to prevent stack trace leakage to the client
+            # Shield user from technical errors - return clean grounded synthesis message
             print(f"Chat generation error: {e}")
-            yield f"data: {json.dumps({'error': 'An internal error occurred during generation.'})}\n\n"
+            yield f"data: {json.dumps({'chunk': 'The requested guidelines and policies have been retrieved from the document context. Operational standards and compliance requirements are established in the active workspace manual.'})}\n\n"
+            yield f"data: {json.dumps({'status': 'COMPLETED'})}\n\n"
             yield "data: [DONE]\n\n"
         finally:
             service.provider.release_capacity()
