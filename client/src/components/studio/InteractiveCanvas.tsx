@@ -597,6 +597,8 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
   const [gridPattern, setGridPattern] = useState<'dots' | 'grid' | 'clean'>(diagram.canvasGridPattern || 'dots');
   const effectiveGridPattern = diagram.canvasGridPattern || gridPattern;
   const [_isTemplatesMenuOpen, setIsTemplatesMenuOpen] = useState<boolean>(false);
+  const [isBulkStepsOpen, setIsBulkStepsOpen] = useState<boolean>(false);
+  const [bulkStepsText, setBulkStepsText] = useState<string>('');
   const gridSize = 16;
 
   // Selection state
@@ -1048,6 +1050,18 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
         setActiveCanvasTool('marquee');
       } else if (e.key === 'h' || e.key === 'H') {
         setActiveCanvasTool('hand');
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {
+        const activeId = selectedNodeId || (selectedNodeIds.length > 0 ? selectedNodeIds[0] : null);
+        if (activeId && !inlineEditing) {
+          e.preventDefault();
+          handleDuplicateNode(activeId);
+        }
+      } else if (e.key === 'Tab') {
+        const activeId = selectedNodeId || (selectedNodeIds.length > 0 ? selectedNodeIds[0] : null);
+        if (activeId && !inlineEditing) {
+          e.preventDefault();
+          handleQuickAddNextStep(activeId);
+        }
       } else if (e.key === 'Escape') {
         setSelectedNodeId(null);
         setSelectedNodeIds([]);
@@ -1064,7 +1078,7 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [selectedNodeId, selectedNodeIds, inlineEditing]);
 
   // Node lookup map
   const nodeMap = useMemo(() => {
@@ -2216,6 +2230,148 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
     setSelectedNodeId(newId);
   };
 
+  // Superfast 1-Click "Add Next Step" (Whimsical / Miro Style Sprouting)
+  const handleQuickAddNextStep = (sourceId: string) => {
+    const sourceNode = nodeMap.get(sourceId);
+    if (!sourceNode) return;
+
+    const newId = `node_${Date.now().toString(36)}`;
+    const nextOrder = (sourceNode.order || nodesWithPositions.length) + 1;
+    const defaultColor = COLOR_PALETTES[(nextOrder - 1) % COLOR_PALETTES.length];
+
+    const sw = sourceNode.width || 230;
+    const sh = sourceNode.height || 110;
+    const sx = sourceNode.x || 100;
+    const sy = sourceNode.y || 180;
+
+    let posX = sx + sw + 70;
+    let posY = sy;
+    if (posX + sw > 1500) {
+      posX = 100;
+      posY = sy + sh + 70;
+    }
+
+    const newNode: NodeSpec = {
+      id: newId,
+      label: `Stage ${nextOrder}`,
+      sublabel: 'Task or milestone description',
+      type: 'process',
+      order: nextOrder,
+      badge: String(nextOrder).padStart(2, '0'),
+      icon: 'Layers',
+      x: posX,
+      y: posY,
+      width: sw,
+      height: sh,
+      customStyle: {
+        shape: sourceNode.customStyle?.shape || 'card',
+        borderColor: defaultColor.border,
+        bgColor: defaultColor.bg,
+        textColor: defaultColor.text,
+        glowColor: defaultColor.glow,
+        borderStyle: 'solid',
+        borderWidth: 2,
+        shadow: 'md',
+      },
+    };
+
+    const newEdge: EdgeSpec = {
+      id: `e_${sourceId}_${newId}_${Date.now().toString(36)}`,
+      source: sourceId,
+      target: newId,
+      label: '',
+      style: 'solid',
+      customStyle: {
+        routing: 'curved',
+        strokeStyle: 'solid',
+        strokeWidth: 2,
+        color: sourceNode.customStyle?.borderColor || defaultColor.border,
+        arrowMarker: 'arrow',
+      },
+    };
+
+    onUpdateDiagram({
+      ...diagram,
+      nodes: [...nodesWithPositions, newNode],
+      edges: [...(diagram.edges || []), newEdge],
+    });
+
+    setSelectedNodeId(newId);
+    setSelectedNodeIds([newId]);
+    setSelectedEdgeId(null);
+    setInlineEditing({ nodeId: newId, field: 'label' });
+  };
+
+  // Instant Bulk Steps / Bullets to Complete Flow
+  const handleQuickBulkSteps = (text: string) => {
+    const lines = text
+      .split('\n')
+      .map((l) => l.replace(/^[\d\.\-\*\•\>\)]+\s*/, '').trim())
+      .filter((l) => l.length > 0);
+    if (lines.length === 0) return;
+
+    const newNodes: NodeSpec[] = [];
+    const newEdges: EdgeSpec[] = [];
+
+    lines.forEach((title, i) => {
+      const id = `step_${Date.now().toString(36)}_${i}`;
+      const color = COLOR_PALETTES[i % COLOR_PALETTES.length];
+      const col = i % 4;
+      const row = Math.floor(i / 4);
+
+      newNodes.push({
+        id,
+        label: title,
+        sublabel: `Step ${i + 1} execution detail`,
+        type: i === 0 ? 'start' : i === lines.length - 1 ? 'end' : 'process',
+        order: i + 1,
+        badge: String(i + 1).padStart(2, '0'),
+        icon: i === 0 ? 'Zap' : i === lines.length - 1 ? 'Target' : 'Layers',
+        x: 100 + col * 290,
+        y: 180 + row * 180,
+        width: 230,
+        height: 110,
+        customStyle: {
+          shape: 'card',
+          borderColor: color.border,
+          bgColor: color.bg,
+          textColor: color.text,
+          glowColor: color.glow,
+          borderStyle: 'solid',
+          borderWidth: 2,
+          shadow: 'md',
+        },
+      });
+
+      if (i > 0) {
+        newEdges.push({
+          id: `e_${newNodes[i - 1].id}_${id}`,
+          source: newNodes[i - 1].id,
+          target: id,
+          label: '',
+          style: 'solid',
+          customStyle: {
+            routing: 'curved',
+            strokeStyle: 'solid',
+            strokeWidth: 2,
+            color: color.border,
+            arrowMarker: 'arrow',
+          },
+        });
+      }
+    });
+
+    onUpdateDiagram({
+      ...diagram,
+      nodes: newNodes,
+      edges: newEdges,
+    });
+    setSelectedNodeId(newNodes[0].id);
+    setIsBulkStepsOpen(false);
+    setBulkStepsText('');
+    handleFitToScreen();
+  };
+
   // Edge Mutations
   const handleCreateEdge = (sourceId: string, targetId: string) => {
     if (sourceId === targetId) return;
@@ -2654,6 +2810,19 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
 
         <div className="h-4 w-[1px] bg-[var(--border-subtle)] mx-0.5 shrink-0" />
 
+        {/* Quick Bulk Steps Importer (Paste Text -> Instant Diagram) */}
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={() => setIsBulkStepsOpen(true)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-emerald-500/40 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 text-xs font-bold transition-all cursor-pointer shadow-xs shrink-0"
+            title="Paste steps or bullet points to instantly generate a complete workflow diagram"
+          >
+            <Sparkles size={12} className="text-emerald-400" />
+            <span>⚡ Paste Steps</span>
+          </button>
+        )}
+
         <button
           type="button"
           onClick={handleToggleDockBottom}
@@ -2676,6 +2845,70 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
           <RotateCcw size={12} />
         </button>
       </div>
+
+      {/* ⚡ Instant Bulk Steps to Flow Modal */}
+      {isBulkStepsOpen && (
+        <div
+          data-interactive="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in"
+          onClick={() => setIsBulkStepsOpen(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 shadow-2xl flex flex-col gap-3 animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-emerald-500/15 text-emerald-400">
+                  <Sparkles size={16} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-[var(--text-primary)]">⚡ Instant Flow Creator (Paste Steps)</h3>
+                  <p className="text-[0.72rem] text-[var(--text-muted)]">Paste numbered steps or bullets to generate all connected boxes in 1 second.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBulkStepsOpen(false)}
+                className="p-1 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            <textarea
+              value={bulkStepsText}
+              onChange={(e) => setBulkStepsText(e.target.value)}
+              placeholder={`1. Customer Submits Order\n2. Inventory & Stock Check\n3. Payment Processing\n4. Warehouse Packaging\n5. Dispatch & Delivery`}
+              rows={6}
+              className="w-full p-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 font-mono resize-none leading-relaxed"
+              autoFocus
+            />
+
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-[0.68rem] text-[var(--text-muted)]">Each line becomes a stage connected in sequence.</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsBulkStepsOpen(false)}
+                  className="px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickBulkSteps(bulkStepsText)}
+                  disabled={!bulkStepsText.trim()}
+                  className="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-slate-950 font-bold text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Sparkles size={13} />
+                  <span>Generate Flow</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Viewport / Zoom Controls (Cleanly positioned at Bottom-Right Corner) */}
       <div
@@ -3512,6 +3745,18 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                         A+
                       </button>
                     </div>
+
+                    {/* ⚡ Instant Add Next Step (Whimsical / Miro Style Sprouting) */}
+                    <button
+                      type="button"
+                      onClick={() => handleQuickAddNextStep(node.id)}
+                      className="flex items-center gap-1 px-2 py-0.5 rounded text-[0.68rem] font-bold bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/40 transition-colors cursor-pointer"
+                      title="Add Next Connected Step (Tab)"
+                    >
+                      <Plus size={11} strokeWidth={3} className="text-amber-300" />
+                      <span>Next Step</span>
+                      <span className="text-[9px] opacity-60 font-mono">Tab</span>
+                    </button>
 
                     {/* 1-Click Direct Connect Dropdown */}
                     {diagram.nodes.filter((n) => n.id !== node.id).length > 0 && (
