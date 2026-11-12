@@ -1354,10 +1354,10 @@ export function VisualStudioPage() {
           {/* Cross-Reference Portal Shortcut */}
           <Link
             to="/cross-ref"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-teal-500/40 bg-teal-500/10 hover:bg-teal-500/20 text-teal-800 dark:text-teal-300 px-2.5 py-1.5 text-xs font-bold transition-all shadow-xs shrink-0"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[color-mix(in_srgb,var(--accent)_30%,transparent)] bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] hover:bg-[color-mix(in_srgb,var(--accent)_22%,transparent)] text-[var(--accent)] px-2.5 py-1.5 text-xs font-bold transition-all shadow-xs shrink-0"
             title="Open Cross-Document Intelligence Portal"
           >
-            <GitCompare size={13} className="text-teal-600 dark:text-teal-400" />
+            <GitCompare size={13} className="text-[var(--accent)]" />
             <span className="hidden md:inline">Cross-Ref Portal</span>
           </Link>
         </div>

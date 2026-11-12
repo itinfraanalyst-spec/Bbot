@@ -304,10 +304,10 @@ export function ChatPage() {
             {/* Cross-Reference Portal Link */}
             <Link
               to="/cross-ref"
-              className="flex items-center gap-1 px-1.5 sm:px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-900 hover:text-teal-950 border border-teal-300 hover:border-teal-400 text-[0.7rem] sm:text-xs font-bold transition-all shadow-xs dark:bg-teal-600/15 dark:border-teal-500/30 dark:text-teal-300 dark:hover:text-white shrink-0"
+              className="flex items-center gap-1 px-1.5 sm:px-2.5 py-1 rounded-lg bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-[var(--accent)] hover:bg-[color-mix(in_srgb,var(--accent)_22%,transparent)] border border-[color-mix(in_srgb,var(--accent)_30%,transparent)] text-[0.7rem] sm:text-xs font-bold transition-all shadow-xs shrink-0"
               title="Open Cross-Document Intelligence Portal"
             >
-              <GitCompare size={12} className="text-teal-600 dark:text-teal-300 shrink-0" />
+              <GitCompare size={12} className="text-[var(--accent)] shrink-0" />
               <span className="hidden sm:inline">Cross-Ref Portal</span>
             </Link>
 

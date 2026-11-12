@@ -21,6 +21,7 @@ import {
   FileSpreadsheet,
   FileCode,
   X,
+  Trash2,
 } from 'lucide-react';
 
 interface DocumentSummaryItem {
@@ -134,7 +135,7 @@ export function CrossReferencePage() {
   const [activeTab, setActiveTab] = useState<'understanding' | 'matrix' | 'conflicts' | 'reader' | 'copilot'>('understanding');
   const [understandingSubTab, setUnderstandingSubTab] = useState<'both' | 'doc_a' | 'doc_b'>('both');
 
-  // Interactive filters
+  // Interactive filters & selected sections
   const [selectedSectionAId, setSelectedSectionAId] = useState<string | null>(null);
   const [selectedSectionBId, setSelectedSectionBId] = useState<string | null>(null);
 
@@ -144,7 +145,7 @@ export function CrossReferencePage() {
   const [copilotChat, setCopilotChat] = useState<Array<{ role: 'user' | 'assistant'; text: string; verdict?: string }>>([
     {
       role: 'assistant',
-      text: 'Namaste! Main aapka Cross-Document Intelligence Copilot hoon. Dono documents upload ya select karein aur main kisi bhi clause, difference, policy limit ya summary ka instant answer dunga.',
+      text: 'Namaste! Main bbot Cross-Document Intelligence Copilot hoon. Dono documents upload ya select karein aur main kisi bhi clause, difference, policy limit ya summary ka exact answer dunga.',
     },
   ]);
 
@@ -202,7 +203,6 @@ export function CrossReferencePage() {
         status: 'READY',
       };
 
-      // Add to docs list
       setDocuments(prev => {
         const filtered = prev.filter(d => d.id !== data.doc_id);
         return [docItem, ...filtered];
@@ -221,6 +221,28 @@ export function CrossReferencePage() {
       if (isSlotA) setIsUploadingA(false);
       else setIsUploadingB(false);
     }
+  };
+
+  // Remove / Clear handlers for Document A and B
+  const handleRemoveDocA = () => {
+    setDocAId('');
+    setUnderstandingA(null);
+    setAnalysisResult(null);
+  };
+
+  const handleRemoveDocB = () => {
+    setDocBId('');
+    setUnderstandingB(null);
+    setAnalysisResult(null);
+  };
+
+  const handleClearAll = () => {
+    setDocAId('');
+    setDocBId('');
+    setUnderstandingA(null);
+    setUnderstandingB(null);
+    setAnalysisResult(null);
+    setErrorMsg(null);
   };
 
   // Run analysis
@@ -348,40 +370,40 @@ export function CrossReferencePage() {
   const getFileIcon = (filename: string) => {
     const lower = filename.toLowerCase();
     if (lower.endsWith('.xlsx') || lower.endsWith('.xls') || lower.endsWith('.csv')) {
-      return <FileSpreadsheet className="text-emerald-500 shrink-0" size={18} />;
+      return <FileSpreadsheet className="text-[var(--accent)] shrink-0" size={17} />;
     }
     if (lower.endsWith('.json') || lower.endsWith('.xml') || lower.endsWith('.md')) {
-      return <FileCode className="text-indigo-500 shrink-0" size={18} />;
+      return <FileCode className="text-[var(--accent)] shrink-0" size={17} />;
     }
-    return <FileText className="text-blue-500 shrink-0" size={18} />;
+    return <FileText className="text-[var(--accent)] shrink-0" size={17} />;
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
-      {/* Top Header */}
-      <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 py-3 shadow-xs">
+    <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col font-sans transition-colors duration-200">
+      {/* Top Header - bbot standard */}
+      <header className="sticky top-0 z-30 bg-[var(--bg-surface)] border-b border-[var(--border-subtle)] px-4 py-3 shadow-xs">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Link
               to="/"
-              className="flex items-center gap-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white text-xs font-medium transition-colors"
+              className="flex items-center gap-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xs font-semibold transition-colors"
             >
               <span>← Chat</span>
             </Link>
-            <div className="h-4 w-px bg-slate-300 dark:bg-slate-700" />
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center shadow-xs">
+            <div className="h-4 w-px bg-[var(--border-subtle)]" />
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-[var(--accent)] text-white flex items-center justify-center shadow-xs">
                 <GitCompare size={18} />
               </div>
               <div>
-                <h1 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  Cross-Document Intelligence Portal
-                  <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300">
-                    Smart Audit
+                <h1 className="text-sm sm:text-base font-bold text-[var(--text-primary)] flex items-center gap-2">
+                  bbot Cross-Reference Portal
+                  <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent)] border border-[color-mix(in_srgb,var(--accent)_28%,transparent)]">
+                    Audit & Alignment
                   </span>
                 </h1>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">
-                  Upload any documents to understand their essence, compare clauses side-by-side, and identify discrepancies.
+                <p className="text-[11px] text-[var(--text-muted)] hidden sm:block">
+                  Upload any document types to understand their core intent, compare clauses side-by-side, and identify discrepancies.
                 </p>
               </div>
             </div>
@@ -390,7 +412,7 @@ export function CrossReferencePage() {
           <div className="flex items-center gap-2">
             <Link
               to="/studio"
-              className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium transition-colors"
+              className="text-xs px-2.5 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] font-medium transition-colors"
             >
               Visual Studio
             </Link>
@@ -398,14 +420,14 @@ export function CrossReferencePage() {
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => handleExport('markdown')}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-semibold shadow-xs transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
                 >
                   <Download size={13} />
                   <span>Report (MD)</span>
                 </button>
                 <button
                   onClick={() => handleExport('json')}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold shadow-xs transition-colors"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] text-xs font-semibold shadow-xs transition-colors cursor-pointer"
                   title="Export raw JSON"
                 >
                   JSON
@@ -420,52 +442,75 @@ export function CrossReferencePage() {
       <main className="max-w-7xl mx-auto w-full p-4 sm:p-6 flex-1 flex flex-col gap-6">
         {/* Error Alert */}
         {errorMsg && (
-          <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 dark:bg-red-950/40 dark:border-red-900 text-red-700 dark:text-red-300 text-xs flex items-center justify-between">
+          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <AlertTriangle size={16} className="shrink-0 text-red-500" />
+              <AlertTriangle size={16} className="shrink-0 text-rose-500" />
               <span>{errorMsg}</span>
             </div>
-            <button onClick={() => setErrorMsg(null)} className="p-1 hover:bg-red-100 dark:hover:bg-red-900 rounded">
+            <button onClick={() => setErrorMsg(null)} className="p-1 hover:bg-rose-500/20 rounded cursor-pointer">
               <X size={14} />
             </button>
           </div>
         )}
 
-        {/* STEP 1: Two Simple Upload & Select Boxes */}
-        <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs">
+        {/* STEP 1: Two Simple Upload & Select Boxes with REMOVE Button */}
+        <section className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-teal-600 text-white text-[11px] flex items-center justify-center font-bold">1</span>
+              <h2 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-[var(--accent)] text-white text-[11px] flex items-center justify-center font-bold">1</span>
                 Upload or Select Two Documents
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
                 Supports PDF, Word (DOCX), Excel (XLSX, CSV), Markdown, TXT, PPTX & JSON files.
               </p>
             </div>
-            <button
-              onClick={loadDocuments}
-              className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1"
-              title="Refresh list"
-            >
-              <RefreshCw size={12} />
-              <span>Refresh</span>
-            </button>
+            <div className="flex items-center gap-3">
+              {(docAId || docBId) && (
+                <button
+                  onClick={handleClearAll}
+                  className="text-xs text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  title="Clear both documents"
+                >
+                  <Trash2 size={12} />
+                  <span>Clear All</span>
+                </button>
+              )}
+              <button
+                onClick={loadDocuments}
+                className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center gap-1 cursor-pointer"
+                title="Refresh list"
+              >
+                <RefreshCw size={12} />
+                <span>Refresh</span>
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* DOCUMENT 1 (A) */}
-            <div className={`p-4 rounded-xl border-2 transition-all ${docAId ? 'border-teal-500/40 bg-teal-50/20 dark:bg-teal-950/10' : 'border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50'}`}>
+            <div className={`p-4 rounded-xl border transition-all ${docAId ? 'border-[var(--accent)]/50 bg-[color-mix(in_srgb,var(--accent)_5%,transparent)]' : 'border-dashed border-[var(--border-subtle)] bg-[var(--bg-primary)]/40'}`}>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-teal-700 dark:text-teal-400 flex items-center gap-1.5">
+                <span className="text-xs font-bold uppercase tracking-wider text-[var(--accent)] flex items-center gap-1.5">
                   <FileText size={14} />
                   Document 1 (Primary / Baseline)
                 </span>
-                {docAId && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 font-semibold flex items-center gap-1">
-                    <CheckCircle2 size={11} /> Ready
-                  </span>
-                )}
+                {docAId ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/30 flex items-center gap-1">
+                      <CheckCircle2 size={11} /> Ready
+                    </span>
+                    {/* REMOVE BUTTON DOC A */}
+                    <button
+                      onClick={handleRemoveDocA}
+                      className="px-2 py-0.5 rounded text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/15 border border-rose-500/30 transition-all flex items-center gap-1 cursor-pointer"
+                      title="Remove Document 1"
+                    >
+                      <X size={12} />
+                      <span>Remove</span>
+                    </button>
+                  </div>
+                ) : null}
               </div>
 
               {/* Drag & Drop Zone */}
@@ -480,15 +525,15 @@ export function CrossReferencePage() {
                   }}
                   accept=".pdf,.docx,.xlsx,.xls,.csv,.txt,.md,.pptx,.json"
                 />
-                <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-teal-500 transition-colors flex items-center justify-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">
+                <div className="p-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)] hover:border-[var(--accent)] transition-colors flex items-center justify-center gap-2 text-xs font-medium text-[var(--text-secondary)] mb-2">
                   {isUploadingA ? (
                     <>
-                      <Loader2 size={14} className="animate-spin text-teal-600" />
+                      <Loader2 size={14} className="animate-spin text-[var(--accent)]" />
                       <span>Extracting & Understanding Document 1...</span>
                     </>
                   ) : (
                     <>
-                      <UploadCloud size={16} className="text-teal-600 dark:text-teal-400" />
+                      <UploadCloud size={16} className="text-[var(--accent)]" />
                       <span>Drag & Drop or Click to Upload File</span>
                     </>
                   )}
@@ -497,11 +542,11 @@ export function CrossReferencePage() {
 
               {/* Or Select from Existing dropdown */}
               <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase font-bold text-slate-400">Or Select:</span>
+                <span className="text-[10px] uppercase font-bold text-[var(--text-muted)]">Or Select:</span>
                 <select
                   value={docAId}
                   onChange={(e) => setDocAId(e.target.value)}
-                  className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  className="flex-1 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--text-primary)] font-medium focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
                 >
                   <option value="">-- Choose Document 1 --</option>
                   {documents.map((d) => (
@@ -512,36 +557,56 @@ export function CrossReferencePage() {
                 </select>
               </div>
 
-              {/* Selected File Badge */}
+              {/* Selected File Badge with Direct Remove */}
               {docAId && (
-                <div className="mt-2.5 p-2 rounded-lg bg-teal-100/40 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800/40 flex items-center justify-between text-xs">
+                <div className="mt-2.5 p-2 rounded-lg bg-[var(--bg-surface)] border border-[color-mix(in_srgb,var(--accent)_30%,transparent)] flex items-center justify-between text-xs gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     {getFileIcon(getDocName(docAId, 'Doc 1'))}
-                    <span className="font-semibold text-slate-800 dark:text-slate-100 truncate">
+                    <span className="font-semibold text-[var(--text-primary)] truncate">
                       {getDocName(docAId, 'Document 1')}
                     </span>
                   </div>
-                  {understandingA && (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-teal-200/50 dark:bg-teal-800/40 text-teal-800 dark:text-teal-300 font-medium shrink-0">
-                      {understandingA.document_type}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {understandingA && (
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-[var(--accent)] border border-[color-mix(in_srgb,var(--accent)_25%,transparent)] font-medium">
+                        {understandingA.document_type}
+                      </span>
+                    )}
+                    <button
+                      onClick={handleRemoveDocA}
+                      className="p-1 text-[var(--text-muted)] hover:text-rose-500 hover:bg-rose-500/10 rounded cursor-pointer transition-colors"
+                      title="Deselect / Remove"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
 
             {/* DOCUMENT 2 (B) */}
-            <div className={`p-4 rounded-xl border-2 transition-all ${docBId ? 'border-indigo-500/40 bg-indigo-50/20 dark:bg-indigo-950/10' : 'border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50'}`}>
+            <div className={`p-4 rounded-xl border transition-all ${docBId ? 'border-[var(--accent)]/50 bg-[color-mix(in_srgb,var(--accent)_5%,transparent)]' : 'border-dashed border-[var(--border-subtle)] bg-[var(--bg-primary)]/40'}`}>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
+                <span className="text-xs font-bold uppercase tracking-wider text-[var(--accent)] flex items-center gap-1.5">
                   <FileText size={14} />
                   Document 2 (Comparison / Target)
                 </span>
-                {docBId && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 font-semibold flex items-center gap-1">
-                    <CheckCircle2 size={11} /> Ready
-                  </span>
-                )}
+                {docBId ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/30 flex items-center gap-1">
+                      <CheckCircle2 size={11} /> Ready
+                    </span>
+                    {/* REMOVE BUTTON DOC B */}
+                    <button
+                      onClick={handleRemoveDocB}
+                      className="px-2 py-0.5 rounded text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/15 border border-rose-500/30 transition-all flex items-center gap-1 cursor-pointer"
+                      title="Remove Document 2"
+                    >
+                      <X size={12} />
+                      <span>Remove</span>
+                    </button>
+                  </div>
+                ) : null}
               </div>
 
               {/* Drag & Drop Zone */}
@@ -556,15 +621,15 @@ export function CrossReferencePage() {
                   }}
                   accept=".pdf,.docx,.xlsx,.xls,.csv,.txt,.md,.pptx,.json"
                 />
-                <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-indigo-500 transition-colors flex items-center justify-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">
+                <div className="p-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)] hover:border-[var(--accent)] transition-colors flex items-center justify-center gap-2 text-xs font-medium text-[var(--text-secondary)] mb-2">
                   {isUploadingB ? (
                     <>
-                      <Loader2 size={14} className="animate-spin text-indigo-600" />
+                      <Loader2 size={14} className="animate-spin text-[var(--accent)]" />
                       <span>Extracting & Understanding Document 2...</span>
                     </>
                   ) : (
                     <>
-                      <UploadCloud size={16} className="text-indigo-600 dark:text-indigo-400" />
+                      <UploadCloud size={16} className="text-[var(--accent)]" />
                       <span>Drag & Drop or Click to Upload File</span>
                     </>
                   )}
@@ -573,11 +638,11 @@ export function CrossReferencePage() {
 
               {/* Or Select from Existing dropdown */}
               <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase font-bold text-slate-400">Or Select:</span>
+                <span className="text-[10px] uppercase font-bold text-[var(--text-muted)]">Or Select:</span>
                 <select
                   value={docBId}
                   onChange={(e) => setDocBId(e.target.value)}
-                  className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="flex-1 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--text-primary)] font-medium focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
                 >
                   <option value="">-- Choose Document 2 --</option>
                   {documents.map((d) => (
@@ -588,28 +653,37 @@ export function CrossReferencePage() {
                 </select>
               </div>
 
-              {/* Selected File Badge */}
+              {/* Selected File Badge with Direct Remove */}
               {docBId && (
-                <div className="mt-2.5 p-2 rounded-lg bg-indigo-100/40 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800/40 flex items-center justify-between text-xs">
+                <div className="mt-2.5 p-2 rounded-lg bg-[var(--bg-surface)] border border-[color-mix(in_srgb,var(--accent)_30%,transparent)] flex items-center justify-between text-xs gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     {getFileIcon(getDocName(docBId, 'Doc 2'))}
-                    <span className="font-semibold text-slate-800 dark:text-slate-100 truncate">
+                    <span className="font-semibold text-[var(--text-primary)] truncate">
                       {getDocName(docBId, 'Document 2')}
                     </span>
                   </div>
-                  {understandingB && (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-200/50 dark:bg-indigo-800/40 text-indigo-800 dark:text-indigo-300 font-medium shrink-0">
-                      {understandingB.document_type}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {understandingB && (
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-[var(--accent)] border border-[color-mix(in_srgb,var(--accent)_25%,transparent)] font-medium">
+                        {understandingB.document_type}
+                      </span>
+                    )}
+                    <button
+                      onClick={handleRemoveDocB}
+                      className="p-1 text-[var(--text-muted)] hover:text-rose-500 hover:bg-rose-500/10 rounded cursor-pointer transition-colors"
+                      title="Deselect / Remove"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Big Action Button */}
-          <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="text-xs text-slate-500 dark:text-slate-400">
+          {/* Action Button Section */}
+          <div className="mt-4 pt-4 border-t border-[var(--border-subtle)] flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="text-xs text-[var(--text-muted)]">
               {docAId && docBId ? (
                 <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
                   <CheckCircle2 size={13} /> Dono documents ready hain. Click karein to begin intelligent cross-referencing.
@@ -621,7 +695,7 @@ export function CrossReferencePage() {
             <button
               onClick={handleAnalyze}
               disabled={isAnalyzing || !docAId || !docBId}
-              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               {isAnalyzing ? (
                 <>
@@ -638,62 +712,62 @@ export function CrossReferencePage() {
           </div>
         </section>
 
-        {/* STEP 2: Results Section with Clean 5 Tabs */}
+        {/* STEP 2: Results Section with Clean Tabs */}
         {analysisResult && (
           <section className="flex flex-col gap-5">
-            {/* Quick Metrics Bar */}
+            {/* Quick Metrics Bar - bbot native style */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-3 shadow-xs">
-                <div className="w-10 h-10 rounded-lg bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300 flex items-center justify-center font-bold text-sm">
+              <div className="p-3.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center gap-3 shadow-xs">
+                <div className="w-10 h-10 rounded-lg bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent)] border border-[color-mix(in_srgb,var(--accent)_28%,transparent)] flex items-center justify-center font-bold text-sm">
                   {analysisResult.summary.alignment_score}%
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Alignment Match</div>
-                  <div className="text-xs font-bold text-slate-900 dark:text-white">
+                  <div className="text-[11px] text-[var(--text-muted)] font-medium">Alignment Match</div>
+                  <div className="text-xs font-bold text-[var(--text-primary)]">
                     {analysisResult.summary.alignment_score >= 80 ? 'High Harmony' : 'Moderate Divergence'}
                   </div>
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-3 shadow-xs">
-                <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 flex items-center justify-center font-bold text-sm">
+              <div className="p-3.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center gap-3 shadow-xs">
+                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold text-sm">
                   {analysisResult.summary.agreed_count}
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Consistent Clauses</div>
-                  <div className="text-xs font-bold text-slate-900 dark:text-white">Aligned Points</div>
+                  <div className="text-[11px] text-[var(--text-muted)] font-medium">Consistent Clauses</div>
+                  <div className="text-xs font-bold text-[var(--text-primary)]">Aligned Points</div>
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-3 shadow-xs">
-                <div className="w-10 h-10 rounded-lg bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300 flex items-center justify-center font-bold text-sm">
+              <div className="p-3.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center gap-3 shadow-xs">
+                <div className="w-10 h-10 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 flex items-center justify-center font-bold text-sm">
                   {analysisResult.discrepancies.length}
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Conflicts & Gaps</div>
-                  <div className="text-xs font-bold text-slate-900 dark:text-white">Action Required</div>
+                  <div className="text-[11px] text-[var(--text-muted)] font-medium">Conflicts & Gaps</div>
+                  <div className="text-xs font-bold text-[var(--text-primary)]">Action Required</div>
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-3 shadow-xs">
-                <div className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300 flex items-center justify-center font-bold text-sm">
+              <div className="p-3.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center gap-3 shadow-xs">
+                <div className="w-10 h-10 rounded-lg bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] border border-[var(--border-subtle)] flex items-center justify-center font-bold text-sm">
                   {analysisResult.comparison_matrix.length || analysisResult.links.length}
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Topics Analyzed</div>
-                  <div className="text-xs font-bold text-slate-900 dark:text-white">Cross-Audit Points</div>
+                  <div className="text-[11px] text-[var(--text-muted)] font-medium">Topics Analyzed</div>
+                  <div className="text-xs font-bold text-[var(--text-primary)]">Cross-Audit Points</div>
                 </div>
               </div>
             </div>
 
-            {/* TAB NAVIGATION */}
-            <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 overflow-x-auto pb-px">
+            {/* TAB NAVIGATION - bbot native style */}
+            <div className="flex items-center gap-2 border-b border-[var(--border-subtle)] overflow-x-auto pb-px">
               <button
                 onClick={() => setActiveTab('understanding')}
-                className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap ${
+                className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
                   activeTab === 'understanding'
-                    ? 'border-teal-600 text-teal-600 dark:border-teal-400 dark:text-teal-400'
-                    : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                    ? 'border-[var(--accent)] text-[var(--accent)]'
+                    : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 <BookOpen size={14} />
@@ -702,10 +776,10 @@ export function CrossReferencePage() {
 
               <button
                 onClick={() => setActiveTab('matrix')}
-                className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap ${
+                className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
                   activeTab === 'matrix'
-                    ? 'border-teal-600 text-teal-600 dark:border-teal-400 dark:text-teal-400'
-                    : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                    ? 'border-[var(--accent)] text-[var(--accent)]'
+                    : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 <Layers size={14} />
@@ -714,10 +788,10 @@ export function CrossReferencePage() {
 
               <button
                 onClick={() => setActiveTab('conflicts')}
-                className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap ${
+                className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
                   activeTab === 'conflicts'
-                    ? 'border-rose-600 text-rose-600 dark:border-rose-400 dark:text-rose-400'
-                    : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                    ? 'border-rose-500 text-rose-500'
+                    : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 <AlertTriangle size={14} />
@@ -726,10 +800,10 @@ export function CrossReferencePage() {
 
               <button
                 onClick={() => setActiveTab('reader')}
-                className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap ${
+                className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
                   activeTab === 'reader'
-                    ? 'border-teal-600 text-teal-600 dark:border-teal-400 dark:text-teal-400'
-                    : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                    ? 'border-[var(--accent)] text-[var(--accent)]'
+                    : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 <SplitSquareVertical size={14} />
@@ -738,10 +812,10 @@ export function CrossReferencePage() {
 
               <button
                 onClick={() => setActiveTab('copilot')}
-                className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap ${
+                className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
                   activeTab === 'copilot'
-                    ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
-                    : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                    ? 'border-[var(--accent)] text-[var(--accent)]'
+                    : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 <MessageSquare size={14} />
@@ -753,33 +827,33 @@ export function CrossReferencePage() {
             {activeTab === 'understanding' && (
               <div className="flex flex-col gap-4">
                 {/* Executive Audit Overview Card */}
-                <div className="p-4 rounded-2xl bg-gradient-to-r from-teal-500/10 via-cyan-500/10 to-indigo-500/10 border border-teal-500/30 p-5">
-                  <div className="flex items-center gap-2 text-xs font-bold text-teal-800 dark:text-teal-300 uppercase tracking-wider mb-2">
+                <div className="p-5 rounded-2xl bg-[var(--bg-surface)] border border-[color-mix(in_srgb,var(--accent)_30%,transparent)] shadow-xs">
+                  <div className="flex items-center gap-2 text-xs font-bold text-[var(--accent)] uppercase tracking-wider mb-2">
                     <Sparkles size={15} /> Executive Cross-Audit Verdict
                   </div>
-                  <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-medium">
+                  <p className="text-xs sm:text-sm text-[var(--text-primary)] leading-relaxed font-medium">
                     {analysisResult.summary.executive_summary}
                   </p>
                 </div>
 
                 {/* Sub-selector: View Both, Doc 1 only, or Doc 2 only */}
                 <div className="flex items-center justify-between">
-                  <div className="inline-flex p-1 rounded-xl bg-slate-200/70 dark:bg-slate-800 text-xs font-semibold">
+                  <div className="inline-flex p-1 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-xs font-semibold">
                     <button
                       onClick={() => setUnderstandingSubTab('both')}
-                      className={`px-3 py-1.5 rounded-lg transition-all ${understandingSubTab === 'both' ? 'bg-white dark:bg-slate-700 shadow-xs text-slate-900 dark:text-white' : 'text-slate-500'}`}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${understandingSubTab === 'both' ? 'bg-[var(--accent)] text-white shadow-xs' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
                     >
                       Compare Both Summaries
                     </button>
                     <button
                       onClick={() => setUnderstandingSubTab('doc_a')}
-                      className={`px-3 py-1.5 rounded-lg transition-all ${understandingSubTab === 'doc_a' ? 'bg-white dark:bg-slate-700 shadow-xs text-teal-700 dark:text-teal-300' : 'text-slate-500'}`}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${understandingSubTab === 'doc_a' ? 'bg-[var(--accent)] text-white shadow-xs' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
                     >
                       Doc 1: {analysisResult.doc_a.filename}
                     </button>
                     <button
                       onClick={() => setUnderstandingSubTab('doc_b')}
-                      className={`px-3 py-1.5 rounded-lg transition-all ${understandingSubTab === 'doc_b' ? 'bg-white dark:bg-slate-700 shadow-xs text-indigo-700 dark:text-indigo-300' : 'text-slate-500'}`}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${understandingSubTab === 'doc_b' ? 'bg-[var(--accent)] text-white shadow-xs' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
                     >
                       Doc 2: {analysisResult.doc_b.filename}
                     </button>
@@ -790,18 +864,18 @@ export function CrossReferencePage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   {/* DOC A PROFILE */}
                   {(understandingSubTab === 'both' || understandingSubTab === 'doc_a') && (
-                    <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-teal-500/30 shadow-xs flex flex-col gap-4">
+                    <div className="p-5 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] shadow-xs flex flex-col gap-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 dark:text-teal-400">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent)]">
                             Document 1 Breakdown
                           </span>
-                          <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 mt-0.5">
+                          <h3 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2 mt-0.5">
                             {analysisResult.doc_a.filename}
                           </h3>
                         </div>
                         {analysisResult.understanding_a && (
-                          <span className="px-2.5 py-1 rounded-full bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300 text-[10px] font-bold">
+                          <span className="px-2.5 py-1 rounded-full bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent)] border border-[color-mix(in_srgb,var(--accent)_28%,transparent)] text-[10px] font-bold">
                             {analysisResult.understanding_a.document_type}
                           </span>
                         )}
@@ -810,37 +884,37 @@ export function CrossReferencePage() {
                       {analysisResult.understanding_a && (
                         <>
                           {/* Core Purpose */}
-                          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800 text-xs">
-                            <div className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 mb-1">
-                              <Target size={13} className="text-teal-600 dark:text-teal-400" />
+                          <div className="p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
+                            <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-1">
+                              <Target size={13} className="text-[var(--accent)]" />
                               Primary Purpose / Goal
                             </div>
-                            <div className="text-slate-600 dark:text-slate-300">
+                            <div className="text-[var(--text-secondary)]">
                               {analysisResult.understanding_a.core_purpose}
                             </div>
                           </div>
 
                           {/* Executive Summary */}
                           <div className="text-xs">
-                            <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 mb-1">
-                              <Info size={13} className="text-teal-600" />
+                            <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-1">
+                              <Info size={13} className="text-[var(--accent)]" />
                               What this document is about (Summary):
                             </div>
-                            <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                            <p className="text-[var(--text-secondary)] leading-relaxed">
                               {analysisResult.understanding_a.executive_summary}
                             </p>
                           </div>
 
                           {/* Key Takeaways & Rules */}
                           <div>
-                            <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5 mb-2">
+                            <div className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-2">
                               <CheckCircle2 size={13} className="text-emerald-500" />
                               Key Points & Operating Rules:
                             </div>
                             <div className="flex flex-col gap-1.5">
                               {analysisResult.understanding_a.key_takeaways.map((point, idx) => (
-                                <div key={idx} className="p-2 rounded-lg bg-teal-50/50 dark:bg-teal-950/20 text-xs text-slate-700 dark:text-slate-300 flex items-start gap-2 border border-teal-100 dark:border-teal-900/30">
-                                  <span className="w-4 h-4 rounded-full bg-teal-200 text-teal-800 dark:bg-teal-800 dark:text-teal-200 text-[9px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                                <div key={idx} className="p-2 rounded-lg bg-[var(--bg-primary)] text-xs text-[var(--text-secondary)] flex items-start gap-2 border border-[var(--border-subtle)]">
+                                  <span className="w-4 h-4 rounded-full bg-[color-mix(in_srgb,var(--accent)_20%,transparent)] text-[var(--accent)] text-[9px] font-bold flex items-center justify-center shrink-0 mt-0.5">
                                     {idx + 1}
                                   </span>
                                   <span>{point}</span>
@@ -852,12 +926,12 @@ export function CrossReferencePage() {
                           {/* Roles & Entities */}
                           {analysisResult.understanding_a.key_entities_or_roles?.length > 0 && (
                             <div>
-                              <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1 mb-1.5">
+                              <div className="text-[11px] font-bold text-[var(--text-muted)] flex items-center gap-1 mb-1.5">
                                 <Users size={12} /> Key Stakeholders & Entities:
                               </div>
                               <div className="flex flex-wrap gap-1.5">
                                 {analysisResult.understanding_a.key_entities_or_roles.map((role, idx) => (
-                                  <span key={idx} className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-medium border border-slate-200 dark:border-slate-700">
+                                  <span key={idx} className="px-2 py-0.5 rounded-md bg-[var(--bg-primary)] text-[var(--text-secondary)] text-[11px] font-medium border border-[var(--border-subtle)]">
                                     {role}
                                   </span>
                                 ))}
@@ -871,18 +945,18 @@ export function CrossReferencePage() {
 
                   {/* DOC B PROFILE */}
                   {(understandingSubTab === 'both' || understandingSubTab === 'doc_b') && (
-                    <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-indigo-500/30 shadow-xs flex flex-col gap-4">
+                    <div className="p-5 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] shadow-xs flex flex-col gap-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent)]">
                             Document 2 Breakdown
                           </span>
-                          <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 mt-0.5">
+                          <h3 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2 mt-0.5">
                             {analysisResult.doc_b.filename}
                           </h3>
                         </div>
                         {analysisResult.understanding_b && (
-                          <span className="px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300 text-[10px] font-bold">
+                          <span className="px-2.5 py-1 rounded-full bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent)] border border-[color-mix(in_srgb,var(--accent)_28%,transparent)] text-[10px] font-bold">
                             {analysisResult.understanding_b.document_type}
                           </span>
                         )}
@@ -891,37 +965,37 @@ export function CrossReferencePage() {
                       {analysisResult.understanding_b && (
                         <>
                           {/* Core Purpose */}
-                          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800 text-xs">
-                            <div className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 mb-1">
-                              <Target size={13} className="text-indigo-600 dark:text-indigo-400" />
+                          <div className="p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
+                            <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-1">
+                              <Target size={13} className="text-[var(--accent)]" />
                               Primary Purpose / Goal
                             </div>
-                            <div className="text-slate-600 dark:text-slate-300">
+                            <div className="text-[var(--text-secondary)]">
                               {analysisResult.understanding_b.core_purpose}
                             </div>
                           </div>
 
                           {/* Executive Summary */}
                           <div className="text-xs">
-                            <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 mb-1">
-                              <Info size={13} className="text-indigo-600" />
+                            <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-1">
+                              <Info size={13} className="text-[var(--accent)]" />
                               What this document is about (Summary):
                             </div>
-                            <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                            <p className="text-[var(--text-secondary)] leading-relaxed">
                               {analysisResult.understanding_b.executive_summary}
                             </p>
                           </div>
 
                           {/* Key Takeaways & Rules */}
                           <div>
-                            <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5 mb-2">
+                            <div className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-1.5 mb-2">
                               <CheckCircle2 size={13} className="text-emerald-500" />
                               Key Points & Operating Rules:
                             </div>
                             <div className="flex flex-col gap-1.5">
                               {analysisResult.understanding_b.key_takeaways.map((point, idx) => (
-                                <div key={idx} className="p-2 rounded-lg bg-indigo-50/50 dark:bg-indigo-950/20 text-xs text-slate-700 dark:text-slate-300 flex items-start gap-2 border border-indigo-100 dark:border-indigo-900/30">
-                                  <span className="w-4 h-4 rounded-full bg-indigo-200 text-indigo-800 dark:bg-indigo-800 dark:text-indigo-200 text-[9px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                                <div key={idx} className="p-2 rounded-lg bg-[var(--bg-primary)] text-xs text-[var(--text-secondary)] flex items-start gap-2 border border-[var(--border-subtle)]">
+                                  <span className="w-4 h-4 rounded-full bg-[color-mix(in_srgb,var(--accent)_20%,transparent)] text-[var(--accent)] text-[9px] font-bold flex items-center justify-center shrink-0 mt-0.5">
                                     {idx + 1}
                                   </span>
                                   <span>{point}</span>
@@ -933,12 +1007,12 @@ export function CrossReferencePage() {
                           {/* Roles & Entities */}
                           {analysisResult.understanding_b.key_entities_or_roles?.length > 0 && (
                             <div>
-                              <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1 mb-1.5">
+                              <div className="text-[11px] font-bold text-[var(--text-muted)] flex items-center gap-1 mb-1.5">
                                 <Users size={12} /> Key Stakeholders & Entities:
                               </div>
                               <div className="flex flex-wrap gap-1.5">
                                 {analysisResult.understanding_b.key_entities_or_roles.map((role, idx) => (
-                                  <span key={idx} className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-medium border border-slate-200 dark:border-slate-700">
+                                  <span key={idx} className="px-2 py-0.5 rounded-md bg-[var(--bg-primary)] text-[var(--text-secondary)] text-[11px] font-medium border border-[var(--border-subtle)]">
                                     {role}
                                   </span>
                                 ))}
@@ -957,7 +1031,7 @@ export function CrossReferencePage() {
             {activeTab === 'matrix' && (
               <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                     Clause-by-Clause & Topic Comparison Matrix ({analysisResult.comparison_matrix.length} Topics)
                   </h3>
                 </div>
@@ -971,31 +1045,31 @@ export function CrossReferencePage() {
                     return (
                       <div
                         key={row.id || idx}
-                        className={`p-4 rounded-xl border bg-white dark:bg-slate-900 shadow-xs transition-all ${
+                        className={`p-4 rounded-xl border bg-[var(--bg-surface)] shadow-xs transition-all ${
                           isConflict
-                            ? 'border-rose-300 dark:border-rose-900/60 bg-rose-50/10'
+                            ? 'border-rose-500/40 bg-rose-500/5'
                             : isStricter
-                            ? 'border-amber-300 dark:border-amber-900/60'
-                            : 'border-slate-200 dark:border-slate-800'
+                            ? 'border-[var(--accent)]/40 bg-[color-mix(in_srgb,var(--accent)_5%,transparent)]'
+                            : 'border-[var(--border-subtle)]'
                         }`}
                       >
                         {/* Topic Header & Verdict Badge */}
-                        <div className="flex items-center justify-between gap-3 mb-3 pb-2 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center justify-between gap-3 mb-3 pb-2 border-b border-[var(--border-subtle)]">
                           <div className="flex items-center gap-2">
-                            <span className="w-5 h-5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-[10px] flex items-center justify-center">
+                            <span className="w-5 h-5 rounded-md bg-[var(--bg-primary)] text-[var(--text-muted)] font-bold text-[10px] flex items-center justify-center border border-[var(--border-subtle)]">
                               {idx + 1}
                             </span>
-                            <span className="font-bold text-sm text-slate-900 dark:text-white">
+                            <span className="font-bold text-sm text-[var(--text-primary)]">
                               {row.topic}
                             </span>
                           </div>
                           <span
                             className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                               isConflict
-                                ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300'
+                                ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
                                 : isAligned
-                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
-                                : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                                : 'bg-[color-mix(in_srgb,var(--accent)_15%,transparent)] text-[var(--accent)] border border-[color-mix(in_srgb,var(--accent)_30%,transparent)]'
                             }`}
                           >
                             {row.status}
@@ -1004,29 +1078,29 @@ export function CrossReferencePage() {
 
                         {/* Stance Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                          <div className="p-3 rounded-lg bg-teal-50/40 dark:bg-teal-950/20 border border-teal-200/50 dark:border-teal-900/30 text-xs">
-                            <div className="text-[10px] font-bold uppercase text-teal-800 dark:text-teal-300 mb-1">
+                          <div className="p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
+                            <div className="text-[10px] font-bold uppercase text-[var(--accent)] mb-1">
                               {analysisResult.doc_a.filename} Stance:
                             </div>
-                            <div className="text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                            <div className="text-[var(--text-secondary)] leading-relaxed font-medium">
                               {row.doc_a_stance}
                             </div>
                           </div>
 
-                          <div className="p-3 rounded-lg bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-200/50 dark:border-indigo-900/30 text-xs">
-                            <div className="text-[10px] font-bold uppercase text-indigo-800 dark:text-indigo-300 mb-1">
+                          <div className="p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
+                            <div className="text-[10px] font-bold uppercase text-[var(--accent)] mb-1">
                               {analysisResult.doc_b.filename} Stance:
                             </div>
-                            <div className="text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                            <div className="text-[var(--text-secondary)] leading-relaxed font-medium">
                               {row.doc_b_stance}
                             </div>
                           </div>
                         </div>
 
                         {/* Verdict Footer */}
-                        <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800 text-xs flex items-start gap-2">
-                          <span className="font-bold text-slate-800 dark:text-slate-200 shrink-0">AI Verdict:</span>
-                          <span className="text-slate-600 dark:text-slate-300">{row.verdict}</span>
+                        <div className="p-2.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs flex items-start gap-2">
+                          <span className="font-bold text-[var(--text-primary)] shrink-0">bbot Verdict:</span>
+                          <span className="text-[var(--text-secondary)]">{row.verdict}</span>
                         </div>
                       </div>
                     );
@@ -1039,31 +1113,31 @@ export function CrossReferencePage() {
             {activeTab === 'conflicts' && (
               <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 flex items-center gap-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 flex items-center gap-2">
                     <AlertTriangle size={15} />
                     High-Priority Discrepancies & Divergences
                   </h3>
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-[var(--text-muted)]">
                     {analysisResult.discrepancies.length} identified
                   </span>
                 </div>
 
                 {analysisResult.discrepancies.length === 0 ? (
-                  <div className="p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
+                  <div className="p-8 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-center">
                     <CheckCircle2 size={36} className="text-emerald-500 mx-auto mb-2" />
-                    <h4 className="font-bold text-slate-900 dark:text-white text-sm">Koi Critical Conflict Nahi Mila!</h4>
-                    <p className="text-xs text-slate-500 mt-1">Dono documents ke rules aur clauses me standard alignment hai.</p>
+                    <h4 className="font-bold text-[var(--text-primary)] text-sm">Koi Critical Conflict Nahi Mila!</h4>
+                    <p className="text-xs text-[var(--text-muted)] mt-1">Dono documents ke rules aur clauses me standard alignment hai.</p>
                   </div>
                 ) : (
                   <div className="flex flex-col gap-3">
                     {analysisResult.discrepancies.map((disc, idx) => (
                       <div
                         key={disc.id || idx}
-                        className="p-4 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-white dark:bg-slate-900 shadow-xs flex flex-col gap-3"
+                        className="p-4 rounded-xl border border-rose-500/30 bg-[var(--bg-surface)] shadow-xs flex flex-col gap-3"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                            <span className="w-5 h-5 rounded-md bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-200 text-[10px] font-bold flex items-center justify-center">
+                          <span className="font-bold text-sm text-[var(--text-primary)] flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-md bg-rose-500/15 text-rose-600 dark:text-rose-400 text-[10px] font-bold flex items-center justify-center">
                               {idx + 1}
                             </span>
                             {disc.topic}
@@ -1071,8 +1145,8 @@ export function CrossReferencePage() {
                           <span
                             className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                               disc.severity === 'high'
-                                ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
-                                : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
+                                ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40'
+                                : 'bg-[color-mix(in_srgb,var(--accent)_15%,transparent)] text-[var(--accent)] border border-[color-mix(in_srgb,var(--accent)_30%,transparent)]'
                             }`}
                           >
                             {disc.severity} Risk
@@ -1081,34 +1155,34 @@ export function CrossReferencePage() {
 
                         {/* Direct Quotes Comparison */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
-                            <div className="text-[10px] font-bold uppercase text-slate-500 mb-1">
+                          <div className="p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
+                            <div className="text-[10px] font-bold uppercase text-[var(--text-muted)] mb-1">
                               {analysisResult.doc_a.filename} Statement:
                             </div>
-                            <div className="text-slate-800 dark:text-slate-200 italic font-mono text-[11px]">
+                            <div className="text-[var(--text-primary)] italic font-mono text-[11px]">
                               "{disc.doc_a_clause}"
                             </div>
                           </div>
 
-                          <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
-                            <div className="text-[10px] font-bold uppercase text-slate-500 mb-1">
+                          <div className="p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
+                            <div className="text-[10px] font-bold uppercase text-[var(--text-muted)] mb-1">
                               {analysisResult.doc_b.filename} Statement:
                             </div>
-                            <div className="text-slate-800 dark:text-slate-200 italic font-mono text-[11px]">
+                            <div className="text-[var(--text-primary)] italic font-mono text-[11px]">
                               "{disc.doc_b_clause}"
                             </div>
                           </div>
                         </div>
 
                         {/* Conflict Detail & Action */}
-                        <div className="p-3 rounded-lg bg-rose-50/60 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/30 text-xs flex flex-col gap-1.5">
+                        <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs flex flex-col gap-1.5">
                           <div>
-                            <span className="font-bold text-rose-900 dark:text-rose-300">Operational Risk: </span>
-                            <span className="text-slate-700 dark:text-slate-300">{disc.conflict_detail}</span>
+                            <span className="font-bold text-rose-600 dark:text-rose-400">Operational Risk: </span>
+                            <span className="text-[var(--text-secondary)]">{disc.conflict_detail}</span>
                           </div>
                           <div>
-                            <span className="font-bold text-teal-900 dark:text-teal-300">Suggested Action: </span>
-                            <span className="text-slate-700 dark:text-slate-300">{disc.suggested_action}</span>
+                            <span className="font-bold text-[var(--accent)]">Suggested Action: </span>
+                            <span className="text-[var(--text-secondary)]">{disc.suggested_action}</span>
                           </div>
                         </div>
                       </div>
@@ -1122,12 +1196,12 @@ export function CrossReferencePage() {
             {activeTab === 'reader' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-[650px]">
                 {/* DOC A PANE */}
-                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden shadow-xs">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 mb-3">
-                    <span className="text-xs font-bold text-teal-700 dark:text-teal-400 truncate">
+                <div className="p-4 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex flex-col overflow-hidden shadow-xs">
+                  <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)] mb-3">
+                    <span className="text-xs font-bold text-[var(--accent)] truncate">
                       Doc 1: {analysisResult.doc_a.filename}
                     </span>
-                    <span className="text-[10px] text-slate-400 font-medium">
+                    <span className="text-[10px] text-[var(--text-muted)] font-medium">
                       {analysisResult.sections_a.length} Sections
                     </span>
                   </div>
@@ -1139,14 +1213,14 @@ export function CrossReferencePage() {
                         onClick={() => setSelectedSectionAId(sec.id)}
                         className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
                           selectedSectionAId === sec.id
-                            ? 'border-teal-500 bg-teal-50/30 dark:bg-teal-950/30 ring-1 ring-teal-500'
-                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                            ? 'border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_8%,transparent)] ring-1 ring-[var(--accent)]'
+                            : 'border-[var(--border-subtle)] bg-[var(--bg-primary)]/50 hover:border-[var(--text-muted)]'
                         }`}
                       >
-                        <div className="font-bold text-slate-900 dark:text-white mb-1">
+                        <div className="font-bold text-[var(--text-primary)] mb-1">
                           {sec.heading}
                         </div>
-                        <div className="text-slate-600 dark:text-slate-300 whitespace-pre-wrap leading-relaxed line-clamp-6">
+                        <div className="text-[var(--text-secondary)] whitespace-pre-wrap leading-relaxed line-clamp-6">
                           {sec.content}
                         </div>
                       </div>
@@ -1155,12 +1229,12 @@ export function CrossReferencePage() {
                 </div>
 
                 {/* DOC B PANE */}
-                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden shadow-xs">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 mb-3">
-                    <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400 truncate">
+                <div className="p-4 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex flex-col overflow-hidden shadow-xs">
+                  <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)] mb-3">
+                    <span className="text-xs font-bold text-[var(--accent)] truncate">
                       Doc 2: {analysisResult.doc_b.filename}
                     </span>
-                    <span className="text-[10px] text-slate-400 font-medium">
+                    <span className="text-[10px] text-[var(--text-muted)] font-medium">
                       {analysisResult.sections_b.length} Sections
                     </span>
                   </div>
@@ -1172,14 +1246,14 @@ export function CrossReferencePage() {
                         onClick={() => setSelectedSectionBId(sec.id)}
                         className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
                           selectedSectionBId === sec.id
-                            ? 'border-indigo-500 bg-indigo-50/30 dark:bg-indigo-950/30 ring-1 ring-indigo-500'
-                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                            ? 'border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_8%,transparent)] ring-1 ring-[var(--accent)]'
+                            : 'border-[var(--border-subtle)] bg-[var(--bg-primary)]/50 hover:border-[var(--text-muted)]'
                         }`}
                       >
-                        <div className="font-bold text-slate-900 dark:text-white mb-1">
+                        <div className="font-bold text-[var(--text-primary)] mb-1">
                           {sec.heading}
                         </div>
-                        <div className="text-slate-600 dark:text-slate-300 whitespace-pre-wrap leading-relaxed line-clamp-6">
+                        <div className="text-[var(--text-secondary)] whitespace-pre-wrap leading-relaxed line-clamp-6">
                           {sec.content}
                         </div>
                       </div>
@@ -1191,14 +1265,14 @@ export function CrossReferencePage() {
 
             {/* TAB 5: ASK AI COPILOT */}
             {activeTab === 'copilot' && (
-              <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col h-[600px]">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 mb-4">
+              <div className="p-5 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] shadow-xs flex flex-col h-[600px]">
+                <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)] mb-4">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <Sparkles size={16} className="text-indigo-600" />
-                      Cross-Document Intelligence Copilot
+                    <h3 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+                      <Sparkles size={16} className="text-[var(--accent)]" />
+                      bbot Cross-Document Copilot
                     </h3>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-[var(--text-muted)]">
                       Query both documents concurrently to resolve ambiguities and verify compliance.
                     </p>
                   </div>
@@ -1208,25 +1282,25 @@ export function CrossReferencePage() {
                 <div className="flex flex-wrap gap-2 mb-4">
                   <button
                     onClick={() => handleSendCopilotQuery(`Explain ${analysisResult.doc_a.filename} in simple words`)}
-                    className="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-medium"
+                    className="px-2.5 py-1 rounded-full bg-[var(--bg-primary)] hover:bg-[var(--bg-surface-hover)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[11px] font-medium cursor-pointer transition-colors"
                   >
                     💡 Explain Doc 1 in simple words
                   </button>
                   <button
                     onClick={() => handleSendCopilotQuery(`Explain ${analysisResult.doc_b.filename} in simple words`)}
-                    className="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-medium"
+                    className="px-2.5 py-1 rounded-full bg-[var(--bg-primary)] hover:bg-[var(--bg-surface-hover)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[11px] font-medium cursor-pointer transition-colors"
                   >
                     💡 Explain Doc 2 in simple words
                   </button>
                   <button
                     onClick={() => handleSendCopilotQuery('What are the top 3 contradictory rules between both documents?')}
-                    className="px-2.5 py-1 rounded-full bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 text-[11px] font-medium border border-rose-200 dark:border-rose-900"
+                    className="px-2.5 py-1 rounded-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-[11px] font-medium border border-rose-500/30 cursor-pointer transition-colors"
                   >
                     ⚠️ Top 3 contradictory rules
                   </button>
                   <button
                     onClick={() => handleSendCopilotQuery('Which document is stricter on authorization limits and approvals?')}
-                    className="px-2.5 py-1 rounded-full bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 text-[11px] font-medium border border-teal-200 dark:border-teal-900"
+                    className="px-2.5 py-1 rounded-full bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] hover:bg-[color-mix(in_srgb,var(--accent)_22%,transparent)] text-[var(--accent)] text-[11px] font-medium border border-[color-mix(in_srgb,var(--accent)_30%,transparent)] cursor-pointer transition-colors"
                   >
                     ⚖️ Which document is stricter?
                   </button>
@@ -1239,21 +1313,21 @@ export function CrossReferencePage() {
                       key={idx}
                       className={`p-3.5 rounded-xl text-xs max-w-[85%] leading-relaxed ${
                         msg.role === 'user'
-                          ? 'ml-auto bg-teal-600 text-white font-medium rounded-br-xs'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-xs border border-slate-200/60 dark:border-slate-700'
+                          ? 'ml-auto bg-[var(--accent)] text-white font-medium rounded-br-xs'
+                          : 'bg-[var(--bg-primary)] text-[var(--text-primary)] rounded-bl-xs border border-[var(--border-subtle)]'
                       }`}
                     >
                       <div className="whitespace-pre-wrap">{msg.text}</div>
                       {msg.verdict && (
-                        <div className="mt-2 pt-2 border-t border-slate-300 dark:border-slate-700 text-[10px] font-semibold text-teal-700 dark:text-teal-300">
+                        <div className="mt-2 pt-2 border-t border-[var(--border-subtle)] text-[10px] font-semibold text-[var(--accent)]">
                           Verdict: {msg.verdict}
                         </div>
                       )}
                     </div>
                   ))}
                   {isCopilotLoading && (
-                    <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs text-slate-500 flex items-center gap-2 w-fit">
-                      <Loader2 size={14} className="animate-spin text-teal-600" />
+                    <div className="p-3 rounded-xl bg-[var(--bg-primary)] text-xs text-[var(--text-muted)] flex items-center gap-2 w-fit border border-[var(--border-subtle)]">
+                      <Loader2 size={14} className="animate-spin text-[var(--accent)]" />
                       Synthesizing comparative answer...
                     </div>
                   )}
@@ -1265,19 +1339,19 @@ export function CrossReferencePage() {
                     e.preventDefault();
                     handleSendCopilotQuery();
                   }}
-                  className="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-800"
+                  className="flex items-center gap-2 pt-2 border-t border-[var(--border-subtle)]"
                 >
                   <input
                     type="text"
                     value={copilotQuery}
                     onChange={(e) => setCopilotQuery(e.target.value)}
                     placeholder="Ask anything comparing both documents..."
-                    className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500"
+                    className="flex-1 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3.5 py-2.5 text-xs text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
                   />
                   <button
                     type="submit"
                     disabled={isCopilotLoading || !copilotQuery.trim()}
-                    className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-xs font-bold transition-colors flex items-center gap-1.5"
+                    className="px-4 py-2.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
                   >
                     <Send size={13} />
                     <span>Ask</span>
