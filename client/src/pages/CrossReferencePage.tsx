@@ -244,7 +244,7 @@ export function CrossReferencePage() {
   const [copilotChat, setCopilotChat] = useState<Array<{ role: 'user' | 'assistant'; text: string; verdict?: string }>>([
     {
       role: 'assistant',
-      text: 'Namaste! Main bbot Cross-Document Intelligence Copilot hoon. Dono documents upload ya select karein aur main kisi bhi clause, difference, policy limit ya summary ka exact answer dunga.',
+      text: 'Hello! I am your bbot Cross-Document Intelligence Copilot. Upload or select two documents, and I can answer any question regarding clauses, discrepancies, policy limits, or comparative summaries.',
     },
   ]);
 
@@ -468,11 +468,11 @@ export function CrossReferencePage() {
   // Run analysis
   const handleAnalyze = async () => {
     if (!docAId || !docBId) {
-      setErrorMsg('Kripya Document 1 aur Document 2 dono select ya upload karein.');
+      setErrorMsg('Please upload or select both Document 1 and Document 2.');
       return;
     }
     if (docAId === docBId) {
-      setErrorMsg('Compare karne ke liye do alag documents chunein.');
+      setErrorMsg('Please select two distinct documents to compare.');
       return;
     }
 
@@ -510,7 +510,7 @@ export function CrossReferencePage() {
       saveAuditToHistory(result);
       showToast('✨ Analysis completed successfully');
     } catch (err: any) {
-      setErrorMsg(err.message || 'Analysis run karne me problem aayi.');
+      setErrorMsg(err.message || 'An error occurred while running cross-document analysis.');
     } finally {
       clearTimeout(stepTimer1);
       clearTimeout(stepTimer2);
@@ -665,7 +665,7 @@ export function CrossReferencePage() {
         ...prev,
         {
           role: 'assistant',
-          text: 'Maaf kijiye, comparative answer generate karte samay problem hui. Dobara try karein.',
+          text: 'Sorry, an error occurred while generating the comparative answer. Please try again.',
         },
       ]);
     } finally {
@@ -852,8 +852,8 @@ export function CrossReferencePage() {
               {auditHistory.length === 0 ? (
                 <div className="text-center py-16 text-xs text-[var(--text-muted)] flex flex-col items-center gap-2">
                   <History size={32} className="text-[var(--text-muted)]/40" />
-                  <span className="font-semibold text-sm text-[var(--text-primary)]">Koi past audit record nahi mila</span>
-                  <p className="max-w-[240px]">Dono documents select karke "Cross-Audit" run karein, aapka kaam yahan automatically save ho jayega.</p>
+                  <span className="font-semibold text-sm text-[var(--text-primary)]">No past audit records found</span>
+                  <p className="max-w-[240px]">Select two documents and run cross-audit. Your analysis will be saved here automatically.</p>
                 </div>
               ) : (
                 auditHistory.map((rec) => {
@@ -1161,10 +1161,10 @@ export function CrossReferencePage() {
             <div className="text-xs text-[var(--text-muted)]">
               {docAId && docBId ? (
                 <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
-                  <CheckCircle2 size={13} /> Dono documents ready hain. Click karein to begin intelligent cross-referencing.
+                  <CheckCircle2 size={13} /> Both documents are ready. Click below to begin intelligent cross-referencing.
                 </span>
               ) : (
-                <span>Dono documents upload ya select karein comparative analysis ke liye.</span>
+                <span>Upload or select two documents to begin comparative analysis.</span>
               )}
             </div>
             {isAnalyzing ? (
@@ -1813,8 +1813,8 @@ export function CrossReferencePage() {
                 {analysisResult.discrepancies.length === 0 ? (
                   <div className="p-8 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-center">
                     <CheckCircle2 size={36} className="text-emerald-500 mx-auto mb-2" />
-                    <h4 className="font-bold text-[var(--text-primary)] text-sm">Koi Critical Conflict Nahi Mila!</h4>
-                    <p className="text-xs text-[var(--text-muted)] mt-1">Dono documents ke rules aur clauses me standard alignment hai.</p>
+                    <h4 className="font-bold text-[var(--text-primary)] text-sm">No Critical Conflicts Found!</h4>
+                    <p className="text-xs text-[var(--text-muted)] mt-1">Both documents exhibit high procedural alignment with standard harmonized clauses.</p>
                   </div>
                 ) : (
                   <div className="flex flex-col gap-4">
