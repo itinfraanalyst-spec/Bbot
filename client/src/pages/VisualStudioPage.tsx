@@ -365,7 +365,7 @@ export function VisualStudioPage() {
     setIsProjectsModalOpen(false);
     setExportNotice({
       type: 'success',
-      message: `✨ Applied "${item.name}" design blueprint (Data-Sanitized & Ready)!`,
+      message: `🎨 "Adapt Design" loaded "${item.name}" layout (Design only, 0 user data)!`,
     });
     setTimeout(() => setExportNotice(null), 4000);
   };
@@ -379,7 +379,7 @@ export function VisualStudioPage() {
       setIsProjectsModalOpen(false);
       setExportNotice({
         type: 'success',
-        message: `⚡ Adapted "${item.name}" design to your current canvas data!`,
+        message: `✨ "Adapt Design" applied "${item.name}" styling to your canvas!`,
       });
       setTimeout(() => setExportNotice(null), 4000);
     } else {
@@ -399,7 +399,7 @@ export function VisualStudioPage() {
     setIsProjectsModalOpen(false);
     setExportNotice({
       type: 'success',
-      message: `🎯 Adapted "${item.name}" design to exact ${count} stages!`,
+      message: `🎯 "Adapt Design" scaled "${item.name}" to exact ${count} stages!`,
     });
     setTimeout(() => setExportNotice(null), 4000);
   };
@@ -2344,8 +2344,8 @@ export function VisualStudioPage() {
                           {/* Quick Scale Buttons (Data kam/zyada ho toh adapt kare) */}
                           <div className="mt-3 pt-2.5 border-t border-[var(--border-subtle)]/60">
                             <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)] mb-1.5">
-                              <span>Auto-Scale Steps:</span>
-                              <span className="text-[9px] font-mono">click step count</span>
+                              <span>Adapt Design to Steps:</span>
+                              <span className="text-[9px] font-mono">auto-interpolate</span>
                             </div>
                             <div className="flex items-center gap-1">
                               {[3, 4, 5, 6, 8].map((count) => (
@@ -2354,7 +2354,7 @@ export function VisualStudioPage() {
                                   type="button"
                                   onClick={() => handleScaleAndApplyTemplate(proj, count)}
                                   className="flex-1 py-1 rounded-md text-[10px] font-mono font-bold bg-[var(--bg-surface-hover)] hover:bg-cyan-500/20 hover:text-cyan-500 dark:hover:text-cyan-300 border border-[var(--border-subtle)] hover:border-cyan-500/40 transition-colors cursor-pointer text-center"
-                                  title={`Adapt this template to exact ${count} steps`}
+                                  title={`Adapt this design to exact ${count} steps`}
                                 >
                                   {count}
                                 </button>
@@ -2366,23 +2366,22 @@ export function VisualStudioPage() {
                           <div className="mt-3 pt-2 flex items-center gap-2">
                             <button
                               type="button"
-                              onClick={() => handleApplyCommunityDesign(proj)}
-                              className="flex-1 inline-flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-600 dark:text-cyan-300 font-bold text-[10px] transition-colors cursor-pointer"
-                              title="Apply this template's design blueprint"
+                              onClick={() => handleAdaptTemplateToActiveCanvas(proj)}
+                              className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:brightness-110 text-white font-bold text-xs shadow-md shadow-cyan-500/20 transition-all cursor-pointer active:scale-[0.98]"
+                              title="Adapt this visual design onto your canvas (strictly keeps your data, zero data from other user copied)"
                             >
-                              <Play size={10} /> Use Design
+                              <Zap size={13} className="text-cyan-100" />
+                              <span>Adapt Design</span>
                             </button>
 
-                            {diagram?.nodes && diagram.nodes.length > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => handleAdaptTemplateToActiveCanvas(proj)}
-                                className="flex-1 inline-flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-600 dark:text-amber-300 font-bold text-[10px] transition-colors cursor-pointer"
-                                title="Map current canvas content into this template's visual design"
-                              >
-                                <Zap size={10} /> Adapt Data
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleApplyCommunityDesign(proj)}
+                              className="inline-flex items-center justify-center gap-1 py-2 px-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-hover)] hover:bg-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-semibold text-[11px] transition-colors cursor-pointer"
+                              title="Copy clean design blueprint with generic placeholders"
+                            >
+                              <span>Clean Design</span>
+                            </button>
                           </div>
                         </div>
                       ))}

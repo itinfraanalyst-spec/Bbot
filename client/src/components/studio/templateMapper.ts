@@ -355,6 +355,7 @@ export function sanitizeDiagramBlueprint(
   const cloned: DiagramSpec = JSON.parse(JSON.stringify(diagram));
   cloned.title = (templateName || cloned.title || 'Custom Process Blueprint').trim();
   cloned.summary = 'Reusable visual design blueprint. Geometry, layout, and theme preserved.';
+  cloned.chartData = undefined;
 
   if (Array.isArray(cloned.nodes)) {
     cloned.nodes = cloned.nodes.map((node, idx) => {
@@ -378,6 +379,7 @@ export function sanitizeDiagramBlueprint(
 
       return {
         ...node,
+        badge: String(idx + 1).padStart(2, '0'),
         label,
         sublabel,
       };

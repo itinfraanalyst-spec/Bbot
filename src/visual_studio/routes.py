@@ -274,6 +274,7 @@ def sanitize_diagram_design(diagram_dict: Dict[str, Any], template_name: str = "
         for idx, node in enumerate(nodes, start=1):
             if not isinstance(node, dict):
                 continue
+            node["badge"] = f"{idx:02d}"
             node_type = str(node.get("type") or "process").lower()
             if "decision" in node_type or "gateway" in node_type:
                 node["label"] = f"Decision Gateway {idx}"
@@ -290,6 +291,9 @@ def sanitize_diagram_design(diagram_dict: Dict[str, Any], template_name: str = "
             else:
                 node["label"] = f"Phase {idx}: Step"
                 node["sublabel"] = "Operational step or task details"
+
+    if "chartData" in sanitized:
+        sanitized["chartData"] = None
 
     edges = sanitized.get("edges", [])
     if isinstance(edges, list):
