@@ -29,6 +29,30 @@ class CrossReferenceService:
         self.doc_repo = DocumentRepository()
         self.history_file = os.path.join(os.getcwd(), "data", "cross_reference_history.json")
 
+    def _safe_parse_json(self, text: str) -> Optional[Dict[str, Any]]:
+        if not text:
+            return None
+        cleaned = re.sub(r"^```(?:json)?\s*", "", text.strip())
+        cleaned = re.sub(r"\s*```$", "", cleaned.strip())
+
+        try:
+            return json.loads(cleaned)
+        except Exception:
+            pass
+
+        json_match = re.search(r"\{[\s\S]*\}", cleaned)
+        if json_match:
+            cand = json_match.group(0)
+            try:
+                return json.loads(cand)
+            except Exception:
+                cand_fixed = re.sub(r',\s*([\}\]])', r'\1', cand)
+                try:
+                    return json.loads(cand_fixed)
+                except Exception:
+                    pass
+        return None
+
     def save_audit_record(self, result: CrossReferenceResponse) -> str:
         """Persists audit record to disk in data/cross_reference_history.json."""
         record_id = f"audit-{int(uuid.uuid1().time_low)}"
@@ -793,9 +817,7 @@ Return ONLY a valid JSON object matching this schema:
                     if chunk.get("type") == "text":
                         full_reply += chunk.get("content", "")
 
-                json_match = re.search(r"\{[\s\S]*\}", full_reply)
-                if json_match:
-                    llm_analysis = json.loads(json_match.group(0))
+                llm_analysis = self._safe_parse_json(full_reply)
             except Exception as e:
                 logger.warning(f"LLM cross-reference analysis failed: {e}")
 
@@ -890,25 +912,73 @@ Return ONLY a valid JSON object matching this schema:
                     )
 
         if not comparison_matrix:
-            sample_topics = [
-                ("General Scope & Operational Mandate", "Establishes baseline operational procedures and authorization checkpoints.", "Governs execution workflows and procedural boundaries."),
-                ("Authority Levels & Approval Limits", "Defines strict signoff thresholds requiring managerial and dual-control approvals.", "Specifies operational delegation rules and escalation criteria."),
-                ("Compliance, Audit & Risk Governance", "Mandates periodic verification, audit log preservation, and non-compliance penalties.", "Outlines regular reviews, documentation verification, and standard oversight.")
-            ]
-            for idx, (top, sa_default, sb_default) in enumerate(sample_topics):
-                sa_text = sections_a[idx].content[:350] if idx < len(sections_a) else sa_default
-                sb_text = sections_b[idx].content[:350] if idx < len(sections_b) else sb_default
+            used_b_ids = set()
+            for sa in sections_a[:8]:
+                sa_words = set(re.findall(r"\w+", (sa.heading + " " + sa.content).lower()))
+                best_sb = None
+                best_score = 0
+                for sb in sections_b:
+                    sb_words = set(re.findall(r"\w+", (sb.heading + " " + sb.content).lower()))
+                    score = len(sa_words.intersection(sb_words))
+                    if score > best_score:
+                        best_score = score
+                        best_sb = sb
+
+                topic_name = sa.heading
+
+                # Format rich summary for Document 1 on this topic
+                doc_a_summary = sa.summary if sa.summary and len(sa.summary) > 30 else sa.content[:350]
+                if sa.key_points:
+                    doc_a_summary += "\n\n• Key Governance Rules: " + " • ".join(sa.key_points)
+
+                # Format rich summary for Document 2 on this topic
+                if best_sb and best_score >= 3:
+                    used_b_ids.add(best_sb.id)
+                    doc_b_summary = best_sb.summary if best_sb.summary and len(best_sb.summary) > 30 else best_sb.content[:350]
+                    if best_sb.key_points:
+                        doc_b_summary += "\n\n• Key Governance Rules: " + " • ".join(best_sb.key_points)
+                    status = "aligned" if best_score > 6 else "stricter"
+                    verdict = f"Both documents address '{topic_name}'. Document 1 establishes operational workflow, while Document 2 specifies procedural thresholds and administrative controls."
+                    implication = f"Staff must confirm whether Document 2's sign-off requirements align with Document 1's turnaround standards for {topic_name}."
+                    guidance = f"Standardize operating terms and adopt the stricter verification criteria established for '{topic_name}'."
+                else:
+                    doc_b_summary = f"Document 2 ({filename_b}) does not contain a dedicated clause or policy for '{topic_name}'. Operational guidelines in Document 1 remain unchallenged."
+                    status = "doc_a_only"
+                    verdict = f"Topic '{topic_name}' is exclusively covered in Document 1 without a corresponding clause in Document 2."
+                    implication = f"Relying solely on Document 2 leaves teams without formal procedural guidance for '{topic_name}'."
+                    guidance = f"Cross-adopt the standard procedures for '{topic_name}' from Document 1 into Document 2's governance framework."
+
                 comparison_matrix.append(
                     TopicComparisonItem(
-                        topic=top,
-                        doc_a_stance=sa_text,
-                        doc_b_stance=sb_text,
-                        status="aligned" if idx == 0 else "reference",
-                        verdict=f"Both documents align on {top.lower()}, establishing structured procedural controls.",
-                        practical_implication="Teams must adhere to the stricter authorization threshold to avoid compliance exceptions.",
-                        guidance="Adopt the dual-approval requirements established in Document A as the operative standard.",
+                        topic=topic_name,
+                        doc_a_stance=doc_a_summary,
+                        doc_b_stance=doc_b_summary,
+                        status=status,
+                        verdict=verdict,
+                        practical_implication=implication,
+                        guidance=guidance,
                     )
                 )
+
+            # Add any prominent sections from Doc B not yet covered
+            for sb in sections_b[:6]:
+                if sb.id not in used_b_ids and len(comparison_matrix) < 12:
+                    topic_name = sb.heading
+                    doc_b_summary = sb.summary if sb.summary and len(sb.summary) > 30 else sb.content[:350]
+                    if sb.key_points:
+                        doc_b_summary += "\n\n• Key Governance Rules: " + " • ".join(sb.key_points)
+
+                    comparison_matrix.append(
+                        TopicComparisonItem(
+                            topic=topic_name,
+                            doc_a_stance=f"Document 1 ({filename_a}) does not contain a specific section for '{topic_name}'.",
+                            doc_b_stance=doc_b_summary,
+                            status="doc_b_only",
+                            verdict=f"Topic '{topic_name}' is introduced exclusively in Document 2 with no dedicated section in Document 1.",
+                            practical_implication=f"Staff following only Document 1 will operate without governance rules for '{topic_name}'.",
+                            guidance=f"Incorporate Document 2's standards for '{topic_name}' into Document 1's workflow.",
+                        )
+                    )
 
         if not summary:
             agreed = sum(1 for l in links if l.relation in ("aligned", "reference"))

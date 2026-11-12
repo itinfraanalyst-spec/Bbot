@@ -1519,46 +1519,57 @@ export function CrossReferencePage() {
                         }`}
                       >
                         {/* Topic Header & Verdict Badge */}
-                        <div className="flex items-center justify-between gap-3 mb-3 pb-2 border-b border-[var(--border-subtle)]">
-                          <div className="flex items-center gap-2">
-                            <span className="w-5 h-5 rounded-md bg-[var(--bg-primary)] text-[var(--text-muted)] font-bold text-[10px] flex items-center justify-center border border-[var(--border-subtle)]">
-                              {idx + 1}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3.5 pb-2.5 border-b border-[var(--border-subtle)]">
+                          <div className="flex items-center gap-2.5">
+                            <span className="w-6 h-6 rounded-lg bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] text-[var(--accent)] font-bold text-[11px] flex items-center justify-center border border-[color-mix(in_srgb,var(--accent)_28%,transparent)] shrink-0">
+                              #{idx + 1}
                             </span>
-                            <span className="font-bold text-sm text-[var(--text-primary)]">
-                              {row.topic}
-                            </span>
+                            <div>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent)] block">
+                                Document Topic
+                              </span>
+                              <h4 className="font-bold text-sm sm:text-base text-[var(--text-primary)] leading-tight">
+                                {row.topic}
+                              </h4>
+                            </div>
                           </div>
                           <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            className={`self-start sm:self-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                               isConflict
                                 ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
                                 : isAligned
                                 ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                                : isStricter
+                                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
                                 : 'bg-[color-mix(in_srgb,var(--accent)_15%,transparent)] text-[var(--accent)] border border-[color-mix(in_srgb,var(--accent)_30%,transparent)]'
                             }`}
                           >
-                            {row.status}
+                            {row.status === 'aligned' ? '✓ Harmonized' : row.status === 'conflict' ? '⚠️ Conflict' : row.status === 'stricter' ? '⚡ Stricter Limits' : row.status === 'doc_a_only' ? '📌 Exclusive to Doc 1' : row.status === 'doc_b_only' ? '📌 Exclusive to Doc 2' : row.status}
                           </span>
                         </div>
 
-                        {/* Stance Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                          <div className="p-3.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
-                            <div className="text-[10px] font-bold uppercase text-[var(--accent)] mb-1.5 flex items-center gap-1">
-                              <FileText size={12} />
-                              {analysisResult.doc_a.filename} Stance:
+                        {/* Dual Document Topic Summaries */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mb-3.5">
+                          {/* Doc 1 Summary on this Topic */}
+                          <div className="p-4 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs flex flex-col gap-2 shadow-xs">
+                            <div className="text-[11px] font-bold text-[var(--accent)] flex items-center gap-1.5 pb-1.5 border-b border-[var(--border-subtle)]">
+                              <FileText size={13} className="shrink-0" />
+                              <span className="truncate">{analysisResult.doc_a.filename}</span>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-[var(--bg-surface)] text-[var(--text-muted)] font-semibold uppercase ml-auto">Topic Summary</span>
                             </div>
-                            <p className="text-[var(--text-secondary)] leading-relaxed whitespace-pre-line font-medium">
+                            <p className="text-[var(--text-secondary)] leading-relaxed whitespace-pre-line font-medium text-xs">
                               {row.doc_a_stance}
                             </p>
                           </div>
 
-                          <div className="p-3.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
-                            <div className="text-[10px] font-bold uppercase text-[var(--accent)] mb-1.5 flex items-center gap-1">
-                              <FileText size={12} />
-                              {analysisResult.doc_b.filename} Stance:
+                          {/* Doc 2 Summary on this Topic */}
+                          <div className="p-4 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs flex flex-col gap-2 shadow-xs">
+                            <div className="text-[11px] font-bold text-[var(--accent)] flex items-center gap-1.5 pb-1.5 border-b border-[var(--border-subtle)]">
+                              <FileText size={13} className="shrink-0" />
+                              <span className="truncate">{analysisResult.doc_b.filename}</span>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-[var(--bg-surface)] text-[var(--text-muted)] font-semibold uppercase ml-auto">Topic Summary</span>
                             </div>
-                            <p className="text-[var(--text-secondary)] leading-relaxed whitespace-pre-line font-medium">
+                            <p className="text-[var(--text-secondary)] leading-relaxed whitespace-pre-line font-medium text-xs">
                               {row.doc_b_stance}
                             </p>
                           </div>
@@ -1591,11 +1602,11 @@ export function CrossReferencePage() {
                         )}
 
                         {/* Verdict Footer */}
-                        <div className="p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs flex items-start gap-2">
+                        <div className="p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs flex items-start gap-2 shadow-xs">
                           <span className="font-bold text-[var(--text-primary)] shrink-0 flex items-center gap-1">
-                            <CheckCircle2 size={13} className="text-[var(--accent)]" /> bbot Verdict:
+                            <CheckCircle2 size={14} className="text-[var(--accent)]" /> bbot Analytical Verdict:
                           </span>
-                          <span className="text-[var(--text-secondary)] leading-relaxed">{row.verdict}</span>
+                          <span className="text-[var(--text-secondary)] leading-relaxed font-medium">{row.verdict}</span>
                         </div>
                       </div>
                     );
