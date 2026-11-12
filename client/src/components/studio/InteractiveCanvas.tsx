@@ -628,8 +628,15 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
   } | null>(null);
   const [inlineTextValue, setInlineTextValue] = useState<string>('');
 
-  // Connect Mode
+  // Connect Mode & Interactive Thread Drag
   const [connectSourceId, setConnectSourceId] = useState<string | null>(null);
+  const [threadDrag, setThreadDrag] = useState<{
+    sourceId: string;
+    sourceAnchor: 'right' | 'top' | 'bottom' | 'left';
+    startX: number;
+    startY: number;
+  } | null>(null);
+  const [threadHoverTargetId, setThreadHoverTargetId] = useState<string | null>(null);
   const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Dragging Nodes
@@ -1046,6 +1053,8 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
         setSelectedNodeIds([]);
         setSelectedEdgeId(null);
         setConnectSourceId(null);
+        setThreadDrag(null);
+        setThreadHoverTargetId(null);
         setActiveGuides([]);
         setIsMarqueeSelecting(false);
         setMarqueeBox(null);
@@ -1363,6 +1372,8 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
     setSelectedEdgeId(null);
     setIsInspectorOpen(false);
     if (connectSourceId) setConnectSourceId(null);
+    if (threadDrag) setThreadDrag(null);
+    setThreadHoverTargetId(null);
     setIsTemplatesMenuOpen(false);
 
     if (canvasRef.current) {
@@ -1600,6 +1611,14 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
 
   const handleMouseUp = () => {
     setIsPanning(false);
+    if (threadDrag) {
+      if (threadHoverTargetId && threadHoverTargetId !== threadDrag.sourceId) {
+        handleCreateEdge(threadDrag.sourceId, threadHoverTargetId);
+        setConnectSourceId(null);
+      }
+      setThreadDrag(null);
+      setThreadHoverTargetId(null);
+    }
     if (draggingNodeId && dragMovedRef.current && dragStartDiagramRef.current) {
       const finalNodes = latestDragNodesRef.current || nodesWithPositions;
       onUpdateDiagram({ ...diagram, nodes: finalNodes }, dragStartDiagramRef.current);
@@ -1645,11 +1664,14 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
       setInlineEditing(null);
     }
 
-    if (connectSourceId) {
-      if (connectSourceId !== node.id) {
-        handleCreateEdge(connectSourceId, node.id);
+    if (connectSourceId || threadDrag) {
+      const srcId = threadDrag?.sourceId || connectSourceId;
+      if (srcId && srcId !== node.id) {
+        handleCreateEdge(srcId, node.id);
       }
       setConnectSourceId(null);
+      setThreadDrag(null);
+      setThreadHoverTargetId(null);
       return;
     }
 
@@ -2249,6 +2271,96 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
     if (selectedEdgeId === id) setSelectedEdgeId(null);
   };
 
+  // Interactive Physical Thread Drag Start
+  const handleThreadStart = (
+    node: NodeSpec,
+    e: React.MouseEvent,
+    anchor: 'right' | 'top' | 'bottom' | 'left' = 'right'
+  ) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (readOnly) return;
+
+    const nw = node.width || 230;
+    const nh = node.height || 110;
+    let startX = (node.x || 0) + nw;
+    let startY = (node.y || 0) + nh / 2;
+    if (anchor === 'left') {
+      startX = node.x || 0;
+      startY = (node.y || 0) + nh / 2;
+    } else if (anchor === 'top') {
+      startX = (node.x || 0) + nw / 2;
+      startY = node.y || 0;
+    } else if (anchor === 'bottom') {
+      startX = (node.x || 0) + nw / 2;
+      startY = (node.y || 0) + nh;
+    }
+
+    setThreadDrag({
+      sourceId: node.id,
+      sourceAnchor: anchor,
+      startX,
+      startY,
+    });
+    setConnectSourceId(node.id);
+    setThreadHoverTargetId(null);
+
+    if (canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const curX = (e.clientX - rect.left - pan.x) / zoom;
+      const curY = (e.clientY - rect.top - pan.y) / zoom;
+      setMousePos({ x: curX, y: curY });
+    }
+  };
+
+  // Active Thread Dragging Window-Level Listener (Silky Smooth Realtime Tracking)
+  useEffect(() => {
+    if (!threadDrag) return;
+
+    let currentHoverTarget: string | null = null;
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!canvasRef.current) return;
+      const rect = canvasRef.current.getBoundingClientRect();
+      const curX = (e.clientX - rect.left - pan.x) / zoom;
+      const curY = (e.clientY - rect.top - pan.y) / zoom;
+      setMousePos({ x: curX, y: curY });
+
+      // Hit-test other nodes on canvas with generous target radius (+20px)
+      const hitNode = nodesWithPositions.find((n) => {
+        if (n.id === threadDrag.sourceId) return false;
+        const nw = n.width || 230;
+        const nh = n.height || 110;
+        const nx = n.x || 0;
+        const ny = n.y || 0;
+        return curX >= nx - 20 && curX <= nx + nw + 20 && curY >= ny - 20 && curY <= ny + nh + 20;
+      });
+
+      const nextTargetId = hitNode ? hitNode.id : null;
+      if (nextTargetId !== currentHoverTarget) {
+        currentHoverTarget = nextTargetId;
+        setThreadHoverTargetId(nextTargetId);
+      }
+    };
+
+    const onMouseUp = () => {
+      if (currentHoverTarget && currentHoverTarget !== threadDrag.sourceId) {
+        handleCreateEdge(threadDrag.sourceId, currentHoverTarget);
+        setConnectSourceId(null);
+      }
+      setThreadDrag(null);
+      setThreadHoverTargetId(null);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [threadDrag, pan, zoom, nodesWithPositions]);
+
   // Calculate anchor point coordinates between source and target
   const getAnchorPoints = (source: NodeSpec, target: NodeSpec) => {
     const sw = source.width || 230;
@@ -2661,20 +2773,25 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
       )}
 
       {/* Connect Mode Banner */}
-      {!isExporting && connectSourceId && (
+      {!isExporting && (connectSourceId || threadDrag) && (
         <div data-interactive="true" className="absolute top-16 left-1/2 -translate-x-1/2 z-30 pointer-events-auto flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-cyan-950/95 border border-cyan-400/80 text-cyan-200 text-xs shadow-2xl backdrop-blur-md animate-bounce">
           <Zap size={13} className="text-cyan-400 shrink-0" />
           <span className="font-medium">
             {(() => {
-              const srcNode = diagram.nodes.find((n) => n.id === connectSourceId);
+              const srcId = threadDrag?.sourceId || connectSourceId;
+              const srcNode = diagram.nodes.find((n) => n.id === srcId);
               const label = srcNode?.label?.replace(/<[^>]*>/g, '').trim().slice(0, 24);
-              return label ? `Connecting from "${label}" → Click target box` : 'Click any destination box to connect';
+              return label ? `Connecting thread from "${label}" → Drop or click target box` : 'Drag or click thread to connect';
             })()}
           </span>
           <span className="text-[0.65rem] text-cyan-400/70 border border-cyan-500/30 rounded px-1 py-0.2">Esc to cancel</span>
           <button
             type="button"
-            onClick={() => setConnectSourceId(null)}
+            onClick={() => {
+              setConnectSourceId(null);
+              setThreadDrag(null);
+              setThreadHoverTargetId(null);
+            }}
             className="p-0.5 rounded hover:bg-cyan-800/40 text-cyan-300 ml-0.5 cursor-pointer"
             title="Cancel Connection (Esc)"
           >
@@ -2690,7 +2807,7 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
         className="w-full h-full relative overflow-hidden"
         style={{
           backgroundColor: getCanvasBgColor(),
-          cursor: isPanning ? 'grabbing' : connectSourceId ? 'crosshair' : 'default',
+          cursor: isPanning ? 'grabbing' : (connectSourceId || threadDrag) ? 'crosshair' : 'default',
         }}
       >
         {/* Architectural Background Grid */}
@@ -2903,25 +3020,132 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
               );
             })}
 
-            {/* Live Rubberband connection in Connect Mode */}
-            {connectSourceId && (() => {
-              const src = nodeMap.get(connectSourceId);
+            {/* Live Interactive Connecting Thread (Physical Cable / Wire with Physics & Magnetic Snap) */}
+            {(threadDrag || connectSourceId) && (() => {
+              const srcId = threadDrag?.sourceId || connectSourceId;
+              if (!srcId) return null;
+              const src = nodeMap.get(srcId);
               if (!src) return null;
+
               const sw = src.width || 230;
               const sh = src.height || 110;
-              const sx = (src.x || 0) + sw / 2;
-              const sy = (src.y || 0) + sh / 2;
-              const pathD = `M ${sx} ${sy} L ${mousePos.x} ${mousePos.y}`;
+              let sx = (src.x || 0) + sw;
+              let sy = (src.y || 0) + sh / 2;
+
+              if (threadDrag?.sourceAnchor === 'left') {
+                sx = src.x || 0;
+                sy = (src.y || 0) + sh / 2;
+              } else if (threadDrag?.sourceAnchor === 'top') {
+                sx = (src.x || 0) + sw / 2;
+                sy = src.y || 0;
+              } else if (threadDrag?.sourceAnchor === 'bottom') {
+                sx = (src.x || 0) + sw / 2;
+                sy = (src.y || 0) + sh;
+              }
+
+              let tx = mousePos.x;
+              let ty = mousePos.y;
+              const activeTargetId = threadHoverTargetId;
+              const targetNode = activeTargetId ? nodeMap.get(activeTargetId) : null;
+
+              if (targetNode) {
+                // Magnetic snap to target node closest side
+                const tw = targetNode.width || 230;
+                const th = targetNode.height || 110;
+                const tCenterX = (targetNode.x || 0) + tw / 2;
+                if (sx < tCenterX) {
+                  tx = targetNode.x || 0;
+                  ty = (targetNode.y || 0) + th / 2;
+                } else {
+                  tx = (targetNode.x || 0) + tw;
+                  ty = (targetNode.y || 0) + th / 2;
+                }
+              }
+
+              const dx = tx - sx;
+              const dy = ty - sy;
+              const dist = Math.hypot(dx, dy);
+              const curvature = Math.min(Math.max(dist * 0.45, 30), 200);
+              const cp1x = sx + (dx >= 0 ? curvature : -curvature * 0.4);
+              const cp1y = sy + (Math.abs(dy) < 20 ? 8 : dy * 0.1);
+              const cp2x = tx - (dx >= 0 ? curvature : -curvature * 0.4);
+              const cp2y = ty - (Math.abs(dy) < 20 ? 8 : dy * 0.1);
+              const pathD = `M ${sx} ${sy} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${tx} ${ty}`;
+
+              const isLocked = Boolean(targetNode);
+              const mainColor = isLocked ? '#10b981' : '#06b6d4';
+              const coreColor = isLocked ? '#34d399' : '#22d3ee';
 
               return (
-                <path
-                  d={pathD}
-                  fill="none"
-                  stroke="#22d3ee"
-                  strokeWidth="2.5"
-                  strokeDasharray="4 4"
-                  className="animate-pulse"
-                />
+                <g className="pointer-events-none select-none z-50">
+                  {/* Outer Ambient Glow Cable */}
+                  <path
+                    d={pathD}
+                    fill="none"
+                    stroke={mainColor}
+                    strokeWidth="8"
+                    opacity="0.3"
+                    strokeLinecap="round"
+                  />
+
+                  {/* Physical Thread Cable with Flowing Dash Pulse */}
+                  <path
+                    d={pathD}
+                    fill="none"
+                    stroke={coreColor}
+                    strokeWidth="3.2"
+                    strokeLinecap="round"
+                    strokeDasharray="6 4"
+                    className="animate-pulse"
+                  />
+
+                  {/* Inner Cable Core Light Wire */}
+                  <path
+                    d={pathD}
+                    fill="none"
+                    stroke="#ffffff"
+                    strokeWidth="1.2"
+                    opacity="0.9"
+                    strokeLinecap="round"
+                  />
+
+                  {/* Thread Port Origin Socket */}
+                  <circle cx={sx} cy={sy} r="5" fill={coreColor} stroke="#ffffff" strokeWidth="1.5" />
+                  <circle cx={sx} cy={sy} r="2" fill="#ffffff" />
+
+                  {/* Live Moving Cable Tip / Magnetic Plug */}
+                  <g transform={`translate(${tx}, ${ty})`}>
+                    <circle r="12" fill={mainColor} opacity="0.35" className="animate-ping" />
+                    <circle r="7" fill={coreColor} stroke="#ffffff" strokeWidth="2" />
+                    <circle r="2.5" fill="#ffffff" />
+
+                    {/* Floating Instruction / Status Badge */}
+                    <g transform="translate(14, -12)">
+                      <rect
+                        x="-2"
+                        y="-10"
+                        width={isLocked ? 130 : 115}
+                        height="20"
+                        rx="10"
+                        fill="#020617"
+                        fillOpacity="0.92"
+                        stroke={isLocked ? "#10b981" : "#06b6d4"}
+                        strokeWidth="1.5"
+                      />
+                      <text
+                        x={isLocked ? 63 : 56}
+                        y="4"
+                        textAnchor="middle"
+                        fill={isLocked ? "#34d399" : "#22d3ee"}
+                        fontSize="9.5"
+                        fontWeight="bold"
+                        fontFamily="sans-serif"
+                      >
+                        {isLocked ? "🎯 Release to Connect!" : "🧵 Drag to Box"}
+                      </text>
+                    </g>
+                  </g>
+                </g>
               );
             })()}
 
@@ -3059,8 +3283,12 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
           {/* Nodes Layer */}
           {nodesWithPositions.map((node) => {
             const isSelected = !isExporting && (selectedNodeId === node.id || selectedNodeIds.includes(node.id));
-            const isSourceConnect = !isExporting && connectSourceId === node.id;
-            const isConnectTarget = !isExporting && connectSourceId !== null && connectSourceId !== node.id;
+            const isSourceConnect = !isExporting && (connectSourceId === node.id || threadDrag?.sourceId === node.id);
+            const isConnectTarget = !isExporting && (
+              (connectSourceId !== null && connectSourceId !== node.id) ||
+              (threadDrag !== null && threadDrag.sourceId !== node.id)
+            );
+            const isHoveredThreadTarget = !isExporting && threadHoverTargetId === node.id;
             const rawShape = (node.customStyle?.shape || 'card') as string;
             const shape: NodeShape =
               rawShape === 'sharp'
@@ -3367,10 +3595,12 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                   className={`w-full h-full relative transition-all duration-150 flex flex-col justify-between overflow-hidden group/box ${
                     isSelected
                       ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-[var(--bg-primary)] shadow-2xl scale-[1.01]'
+                      : isHoveredThreadTarget
+                      ? 'ring-4 ring-emerald-400 ring-offset-2 ring-offset-[var(--bg-primary)] shadow-2xl shadow-emerald-500/50 scale-[1.03] animate-pulse cursor-pointer'
                       : isSourceConnect
                       ? 'ring-2 ring-cyan-400 ring-offset-2 ring-offset-[var(--bg-primary)] shadow-xl animate-pulse'
                       : isConnectTarget
-                      ? 'ring-2 ring-emerald-400 ring-offset-2 ring-offset-[var(--bg-primary)] shadow-xl shadow-emerald-500/25 animate-pulse cursor-pointer hover:scale-[1.02]'
+                      ? 'ring-2 ring-emerald-400/80 ring-offset-2 ring-offset-[var(--bg-primary)] shadow-xl shadow-emerald-500/25 animate-pulse cursor-pointer hover:scale-[1.02]'
                       : 'hover:shadow-lg'
                   }`}
                   style={{
@@ -3403,9 +3633,15 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                   {/* Connect Target Overlay Badge */}
                   {isConnectTarget && !readOnly && !isExporting && (
                     <div className="absolute inset-0 z-40 bg-emerald-950/25 backdrop-blur-[0.5px] rounded-[inherit] flex items-center justify-center pointer-events-none transition-all">
-                      <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-600 text-white text-[0.72rem] font-bold shadow-lg border border-emerald-400 animate-pulse tracking-wide select-none">
-                        <Zap size={11} className="text-white" />
-                        Click to Connect
+                      <span
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-white text-[0.72rem] font-bold shadow-lg border border-emerald-400 animate-pulse tracking-wide select-none ${
+                          isHoveredThreadTarget
+                            ? 'bg-emerald-500 text-slate-950 scale-110 shadow-emerald-500/50 ring-2 ring-emerald-300'
+                            : 'bg-emerald-600'
+                        }`}
+                      >
+                        <Zap size={12} className={isHoveredThreadTarget ? 'fill-slate-950 text-slate-950 animate-bounce' : 'text-white'} />
+                        {isHoveredThreadTarget ? 'Release to Connect Thread!' : 'Click or Drop Thread'}
                       </span>
                     </div>
                   )}
@@ -3899,6 +4135,38 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                   )}
                 </div>
 
+                {/* Dedicated Thread Connector Cord & Bead (Taar per Box) */}
+                {!readOnly && !isExporting && (
+                  <div
+                    data-interactive="true"
+                    onMouseDown={(e) => handleThreadStart(node, e, 'right')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConnectSourceId(node.id);
+                    }}
+                    className={`absolute -right-4 top-1/2 -translate-y-1/2 flex items-center cursor-grab active:cursor-grabbing z-30 group/thread select-none transition-all ${
+                      isSelected || isSourceConnect
+                        ? 'opacity-100 scale-110'
+                        : 'opacity-75 group-hover/box:opacity-100 hover:opacity-100 hover:scale-125'
+                    }`}
+                    title="🧵 Drag thread to connect to another box (or click to pick target)"
+                  >
+                    {/* Micro flexible wire cord connecting from box border to thread plug */}
+                    <div className="w-2.5 h-1 bg-cyan-400 group-hover/thread:bg-cyan-300 rounded-l shadow-sm" />
+
+                    {/* Glowing Thread Plug Bead */}
+                    <div className="relative w-6 h-6 rounded-full bg-gradient-to-tr from-cyan-600 via-cyan-500 to-emerald-400 border-2 border-white dark:border-slate-900 shadow-md flex items-center justify-center transition-transform hover:scale-110">
+                      <div className="w-2 h-2 rounded-full bg-white animate-ping opacity-60 absolute" />
+                      <Zap size={10} className="text-white fill-white relative z-10" />
+                    </div>
+
+                    {/* Floating tooltip on hover */}
+                    <div className="absolute left-8 top-1/2 -translate-y-1/2 px-2 py-0.5 rounded bg-black/95 text-cyan-300 text-[0.62rem] font-bold shadow-xl border border-cyan-400/40 pointer-events-none opacity-0 group-hover/thread:opacity-100 transition-opacity whitespace-nowrap z-50">
+                      🧵 Drag thread to connect
+                    </div>
+                  </div>
+                )}
+
                 {/* Connection Handles (4 cardinal anchor points: Top, Right, Bottom, Left) */}
                 {!readOnly && !isExporting && (
                   <>
@@ -3906,6 +4174,7 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                     <button
                       type="button"
                       data-interactive="true"
+                      onMouseDown={(e) => handleThreadStart(node, e, 'top')}
                       onClick={(e) => {
                         e.stopPropagation();
                         setConnectSourceId(node.id);
@@ -3913,7 +4182,7 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                       className={`absolute -top-2.5 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-cyan-500 hover:bg-cyan-400 border-2 border-white dark:border-slate-900 ${
                         isSelected ? 'opacity-100 scale-100 shadow-md shadow-cyan-500/50 ring-2 ring-cyan-400/40' : 'opacity-0 group-hover:opacity-100'
                       } hover:opacity-100 hover:scale-125 transition-all shadow-md flex items-center justify-center cursor-crosshair z-30`}
-                      title="Connect from Top"
+                      title="Drag thread from Top"
                     >
                       <Plus size={10} className="text-white" strokeWidth={3} />
                     </button>
@@ -3922,6 +4191,7 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                     <button
                       type="button"
                       data-interactive="true"
+                      onMouseDown={(e) => handleThreadStart(node, e, 'right')}
                       onClick={(e) => {
                         e.stopPropagation();
                         setConnectSourceId(node.id);
@@ -3929,7 +4199,7 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                       className={`absolute -right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-cyan-500 hover:bg-cyan-400 border-2 border-white dark:border-slate-900 ${
                         isSelected ? 'opacity-100 scale-100 shadow-md shadow-cyan-500/50 ring-2 ring-cyan-400/40' : 'opacity-0 group-hover:opacity-100'
                       } hover:opacity-100 hover:scale-125 transition-all shadow-md flex items-center justify-center cursor-crosshair z-30`}
-                      title="Connect from Right"
+                      title="Drag thread from Right"
                     >
                       <Plus size={10} className="text-white" strokeWidth={3} />
                     </button>
@@ -3938,6 +4208,7 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                     <button
                       type="button"
                       data-interactive="true"
+                      onMouseDown={(e) => handleThreadStart(node, e, 'bottom')}
                       onClick={(e) => {
                         e.stopPropagation();
                         setConnectSourceId(node.id);
@@ -3945,7 +4216,7 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                       className={`absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-cyan-500 hover:bg-cyan-400 border-2 border-white dark:border-slate-900 ${
                         isSelected ? 'opacity-100 scale-100 shadow-md shadow-cyan-500/50 ring-2 ring-cyan-400/40' : 'opacity-0 group-hover:opacity-100'
                       } hover:opacity-100 hover:scale-125 transition-all shadow-md flex items-center justify-center cursor-crosshair z-30`}
-                      title="Connect from Bottom"
+                      title="Drag thread from Bottom"
                     >
                       <Plus size={10} className="text-white" strokeWidth={3} />
                     </button>
@@ -3954,6 +4225,7 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                     <button
                       type="button"
                       data-interactive="true"
+                      onMouseDown={(e) => handleThreadStart(node, e, 'left')}
                       onClick={(e) => {
                         e.stopPropagation();
                         setConnectSourceId(node.id);
@@ -3961,7 +4233,7 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                       className={`absolute -left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-cyan-500 hover:bg-cyan-400 border-2 border-white dark:border-slate-900 ${
                         isSelected ? 'opacity-100 scale-100 shadow-md shadow-cyan-500/50 ring-2 ring-cyan-400/40' : 'opacity-0 group-hover:opacity-100'
                       } hover:opacity-100 hover:scale-125 transition-all shadow-md flex items-center justify-center cursor-crosshair z-30`}
-                      title="Connect from Left"
+                      title="Drag thread from Left"
                     >
                       <Plus size={10} className="text-white" strokeWidth={3} />
                     </button>
