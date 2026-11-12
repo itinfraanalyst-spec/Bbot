@@ -141,7 +141,10 @@ interface SavedAuditRecord {
   doc_a_name: string;
   doc_b_name: string;
   alignment_score: number;
-  data: CrossReferenceResponse;
+  topic_count?: number;
+  conflict_count?: number;
+  executive_summary?: string;
+  data?: CrossReferenceResponse;
 }
 
 // Simple word-level diff utility
@@ -253,7 +256,20 @@ export function CrossReferencePage() {
     }
   };
 
-  const loadAuditHistory = () => {
+  const loadAuditHistory = async () => {
+    try {
+      const res = await fetch('/api/cross-reference/history', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.history && data.history.length > 0) {
+          setAuditHistory(data.history);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Backend history fetch failed, trying local storage:', e);
+    }
+
     try {
       const stored = localStorage.getItem('bbot_cross_ref_audits');
       if (stored) {
@@ -268,32 +284,78 @@ export function CrossReferencePage() {
     try {
       const newRecord: SavedAuditRecord = {
         id: `audit-${Date.now()}`,
-        timestamp: new Date().toLocaleString(),
+        timestamp: new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
         doc_a_name: result.doc_a.filename,
         doc_b_name: result.doc_b.filename,
         alignment_score: result.summary.alignment_score,
+        topic_count: result.comparison_matrix.length,
+        conflict_count: result.discrepancies.length,
+        executive_summary: result.summary.executive_summary?.slice(0, 180),
         data: result,
       };
-      const updated = [newRecord, ...auditHistory.filter(a => !(a.doc_a_name === result.doc_a.filename && a.doc_b_name === result.doc_b.filename))].slice(0, 8);
-      setAuditHistory(updated);
-      localStorage.setItem('bbot_cross_ref_audits', JSON.stringify(updated));
+      setAuditHistory(prev => {
+        const updated = [newRecord, ...prev.filter(a => !(a.doc_a_name === result.doc_a.filename && a.doc_b_name === result.doc_b.filename))].slice(0, 20);
+        try {
+          localStorage.setItem('bbot_cross_ref_audits', JSON.stringify(updated));
+        } catch {
+          // ignore quota
+        }
+        return updated;
+      });
     } catch (e) {
       console.warn('Failed to save audit history:', e);
     }
   };
 
-  const restoreAudit = (record: SavedAuditRecord) => {
-    setAnalysisResult(record.data);
-    setDocAId(record.data.doc_a.id);
-    setDocBId(record.data.doc_b.id);
-    if (record.data.understanding_a) setUnderstandingA(record.data.understanding_a);
-    if (record.data.understanding_b) setUnderstandingB(record.data.understanding_b);
-    if (record.data.sections_a?.length > 0) setSelectedSectionAId(record.data.sections_a[0].id);
-    if (record.data.sections_b?.length > 0) setSelectedSectionBId(record.data.sections_b[0].id);
-    setIsHistoryOpen(false);
+  const restoreAudit = async (record: SavedAuditRecord) => {
+    try {
+      let fullData = record.data;
+      if (!fullData) {
+        const res = await fetch(`/api/cross-reference/history/${record.id}`, { credentials: 'include' });
+        if (res.ok) {
+          fullData = await res.json();
+        }
+      }
+
+      if (fullData) {
+        setAnalysisResult(fullData);
+        setDocAId(fullData.doc_a.id);
+        setDocBId(fullData.doc_b.id);
+        if (fullData.understanding_a) setUnderstandingA(fullData.understanding_a);
+        if (fullData.understanding_b) setUnderstandingB(fullData.understanding_b);
+        if (fullData.sections_a?.length > 0) setSelectedSectionAId(fullData.sections_a[0].id);
+        if (fullData.sections_b?.length > 0) setSelectedSectionBId(fullData.sections_b[0].id);
+        setIsHistoryOpen(false);
+      }
+    } catch (err) {
+      console.error('Failed to restore audit record:', err);
+    }
   };
 
-  const clearAuditHistory = () => {
+  const deleteSingleAudit = async (e: React.MouseEvent, recordId: string) => {
+    e.stopPropagation();
+    try {
+      await fetch(`/api/cross-reference/history/${recordId}`, { method: 'DELETE', credentials: 'include' });
+    } catch {
+      // ignore
+    }
+    setAuditHistory(prev => {
+      const updated = prev.filter(r => r.id !== recordId);
+      try {
+        localStorage.setItem('bbot_cross_ref_audits', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+  };
+
+  const clearAuditHistory = async () => {
+    try {
+      await fetch('/api/cross-reference/history', { method: 'DELETE', credentials: 'include' });
+    } catch {
+      // ignore
+    }
     localStorage.removeItem('bbot_cross_ref_audits');
     setAuditHistory([]);
   };
@@ -672,11 +734,14 @@ export function CrossReferencePage() {
             {/* Audit History Drawer Toggle */}
             <button
               onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] text-xs font-semibold text-[var(--text-secondary)] transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] text-xs font-semibold text-[var(--text-primary)] transition-colors cursor-pointer shadow-xs"
               title="View past audit records"
             >
-              <History size={13} className="text-[var(--accent)]" />
-              <span className="hidden sm:inline">History ({auditHistory.length})</span>
+              <History size={14} className="text-[var(--accent)]" />
+              <span>History</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-[color-mix(in_srgb,var(--accent)_20%,transparent)] text-[var(--accent)] text-[10px] font-bold">
+                {auditHistory.length}
+              </span>
             </button>
 
             <Link
@@ -711,25 +776,33 @@ export function CrossReferencePage() {
 
       {/* Slide-over Audit History Drawer */}
       {isHistoryOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs animate-in fade-in">
-          <div className="w-full max-w-md bg-[var(--bg-surface)] border-l border-[var(--border-subtle)] p-5 flex flex-col h-full shadow-2xl">
+        <div
+          className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-xs animate-in fade-in"
+          onClick={() => setIsHistoryOpen(false)}
+        >
+          <div
+            className="w-full max-w-md bg-[var(--bg-surface)] border-l border-[var(--border-subtle)] p-5 flex flex-col h-full shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)] mb-4">
               <div className="flex items-center gap-2">
                 <History size={16} className="text-[var(--accent)]" />
-                <h3 className="font-bold text-sm text-[var(--text-primary)]">Recent Audit History</h3>
+                <h3 className="font-bold text-sm text-[var(--text-primary)]">
+                  Past Document Comparisons ({auditHistory.length})
+                </h3>
               </div>
               <div className="flex items-center gap-2">
                 {auditHistory.length > 0 && (
                   <button
                     onClick={clearAuditHistory}
-                    className="text-[11px] text-rose-500 hover:underline cursor-pointer"
+                    className="text-[11px] text-rose-500 hover:underline cursor-pointer font-medium"
                   >
                     Clear All
                   </button>
                 )}
                 <button
                   onClick={() => setIsHistoryOpen(false)}
-                  className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                  className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] cursor-pointer"
                 >
                   <X size={16} />
                 </button>
@@ -738,31 +811,54 @@ export function CrossReferencePage() {
 
             <div className="flex-1 overflow-y-auto space-y-3 pr-1">
               {auditHistory.length === 0 ? (
-                <div className="text-center py-10 text-xs text-[var(--text-muted)]">
-                  Koi purani audit record nahi hai.
+                <div className="text-center py-16 text-xs text-[var(--text-muted)] flex flex-col items-center gap-2">
+                  <History size={32} className="text-[var(--text-muted)]/40" />
+                  <span className="font-semibold text-sm text-[var(--text-primary)]">Koi past audit record nahi mila</span>
+                  <p className="max-w-[240px]">Dono documents select karke "Cross-Audit" run karein, aapka kaam yahan automatically save ho jayega.</p>
                 </div>
               ) : (
-                auditHistory.map((rec) => (
-                  <div
-                    key={rec.id}
-                    onClick={() => restoreAudit(rec)}
-                    className="p-3.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] hover:border-[var(--accent)] transition-all cursor-pointer flex flex-col gap-2 group"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-[var(--text-muted)]">{rec.timestamp}</span>
-                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-[var(--accent)]">
-                        {rec.alignment_score}% Match
-                      </span>
+                auditHistory.map((rec) => {
+                  const topicCount = rec.topic_count ?? rec.data?.comparison_matrix?.length ?? 0;
+                  const conflictCount = rec.conflict_count ?? rec.data?.discrepancies?.length ?? 0;
+
+                  return (
+                    <div
+                      key={rec.id}
+                      onClick={() => restoreAudit(rec)}
+                      className="p-3.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] hover:border-[var(--accent)] transition-all cursor-pointer flex flex-col gap-2 group shadow-xs hover:shadow-md"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] text-[var(--text-muted)] font-medium">{rec.timestamp}</span>
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent)] border border-[color-mix(in_srgb,var(--accent)_28%,transparent)]">
+                          {rec.alignment_score}% Harmony
+                        </span>
+                      </div>
+                      <div className="text-xs font-bold text-[var(--text-primary)] group-hover:text-[var(--accent)] transition-colors leading-snug">
+                        {rec.doc_a_name} <span className="text-[var(--text-muted)] font-normal">vs</span> {rec.doc_b_name}
+                      </div>
+                      {rec.executive_summary && (
+                        <p className="text-[11px] text-[var(--text-muted)] line-clamp-2 leading-relaxed">
+                          {rec.executive_summary}
+                        </p>
+                      )}
+                      <div className="text-[10px] text-[var(--text-muted)] flex items-center justify-between pt-1 border-t border-[var(--border-subtle)]/60">
+                        <span>{topicCount} Topics • {conflictCount} Conflicts</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={(e) => deleteSingleAudit(e, rec.id)}
+                            className="text-[var(--text-muted)] hover:text-rose-500 p-0.5 rounded cursor-pointer transition-colors"
+                            title="Delete record"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                          <span className="text-[var(--accent)] font-bold flex items-center gap-0.5">
+                            Open Audit →
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-xs font-semibold text-[var(--text-primary)] group-hover:text-[var(--accent)] transition-colors">
-                      {rec.doc_a_name} <span className="text-[var(--text-muted)]">vs</span> {rec.doc_b_name}
-                    </div>
-                    <div className="text-[10px] text-[var(--text-muted)] flex items-center justify-between">
-                      <span>{rec.data.comparison_matrix.length} Topics • {rec.data.discrepancies.length} Conflicts</span>
-                      <span className="text-[var(--accent)] font-bold">Open →</span>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

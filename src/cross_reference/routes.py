@@ -260,3 +260,45 @@ def export_cross_reference(
         media_type="text/markdown",
         headers={"Content-Disposition": f'attachment; filename="cross_reference_audit_{data.doc_a.get("id")[:6]}_{data.doc_b.get("id")[:6]}.md"'},
     )
+
+
+@router.get("/history")
+def get_audit_history(
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Returns list of past cross-reference audit records.
+    """
+    return {"history": _service.get_audit_history()}
+
+
+@router.get("/history/{audit_id}", response_model=CrossReferenceResponse)
+def get_audit_record(
+    audit_id: str,
+    current_user: dict = Depends(get_current_user),
+) -> CrossReferenceResponse:
+    """
+    Returns full audit data for restoring in UI.
+    """
+    record = _service.get_audit_record(audit_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Audit record not found")
+    return record
+
+
+@router.delete("/history/{audit_id}")
+def delete_audit_record(
+    audit_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    success = _service.delete_audit_record(audit_id)
+    return {"success": success}
+
+
+@router.delete("/history")
+def clear_all_history(
+    current_user: dict = Depends(get_current_user),
+):
+    success = _service.clear_audit_history()
+    return {"success": success}
+

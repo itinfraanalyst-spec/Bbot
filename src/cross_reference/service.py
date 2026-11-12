@@ -3,6 +3,7 @@ import re
 import json
 import uuid
 import logging
+import datetime
 from typing import Dict, Any, List, Optional, Tuple
 from src.config import settings
 from src.database.document_repository import DocumentRepository
@@ -26,6 +27,108 @@ class CrossReferenceService:
     def __init__(self):
         self._provider = None
         self.doc_repo = DocumentRepository()
+        self.history_file = os.path.join(os.getcwd(), "data", "cross_reference_history.json")
+
+    def save_audit_record(self, result: CrossReferenceResponse) -> str:
+        """Persists audit record to disk in data/cross_reference_history.json."""
+        record_id = f"audit-{int(uuid.uuid1().time_low)}"
+        timestamp = datetime.datetime.now().strftime("%d %b %Y, %I:%M %p")
+
+        record = {
+            "id": record_id,
+            "timestamp": timestamp,
+            "doc_a_name": result.doc_a.get("filename", "Doc 1"),
+            "doc_b_name": result.doc_b.get("filename", "Doc 2"),
+            "alignment_score": result.summary.alignment_score,
+            "topic_count": len(result.comparison_matrix),
+            "conflict_count": len(result.discrepancies),
+            "executive_summary": result.summary.executive_summary[:200],
+            "data": result.dict(),
+        }
+
+        try:
+            records = []
+            if os.path.exists(self.history_file):
+                try:
+                    with open(self.history_file, "r", encoding="utf-8") as f:
+                        records = json.load(f)
+                except Exception:
+                    records = []
+
+            # Deduplicate by same doc pairs or prepend
+            records = [r for r in records if not (r.get("doc_a_name") == record["doc_a_name"] and r.get("doc_b_name") == record["doc_b_name"])]
+            records.insert(0, record)
+            records = records[:25]
+
+            os.makedirs(os.path.dirname(self.history_file), exist_ok=True)
+            with open(self.history_file, "w", encoding="utf-8") as f:
+                json.dump(records, f, indent=2)
+        except Exception as e:
+            logger.warning(f"Failed to persist audit history: {e}")
+
+        return record_id
+
+    def get_audit_history(self) -> List[Dict[str, Any]]:
+        """Returns list of audit summaries without the heavy data payload."""
+        if not os.path.exists(self.history_file):
+            return []
+        try:
+            with open(self.history_file, "r", encoding="utf-8") as f:
+                records = json.load(f)
+            history_list = []
+            for r in records:
+                history_list.append({
+                    "id": r.get("id"),
+                    "timestamp": r.get("timestamp"),
+                    "doc_a_name": r.get("doc_a_name"),
+                    "doc_b_name": r.get("doc_b_name"),
+                    "alignment_score": r.get("alignment_score", 85),
+                    "topic_count": r.get("topic_count", 0),
+                    "conflict_count": r.get("conflict_count", 0),
+                    "executive_summary": r.get("executive_summary", ""),
+                })
+            return history_list
+        except Exception as e:
+            logger.warning(f"Failed to read audit history: {e}")
+            return []
+
+    def get_audit_record(self, audit_id: str) -> Optional[CrossReferenceResponse]:
+        """Returns the full audit record for restoring in UI."""
+        if not os.path.exists(self.history_file):
+            return None
+        try:
+            with open(self.history_file, "r", encoding="utf-8") as f:
+                records = json.load(f)
+            for r in records:
+                if r.get("id") == audit_id:
+                    return CrossReferenceResponse(**r.get("data"))
+            return None
+        except Exception as e:
+            logger.warning(f"Failed to read audit record {audit_id}: {e}")
+            return None
+
+    def delete_audit_record(self, audit_id: str) -> bool:
+        if not os.path.exists(self.history_file):
+            return False
+        try:
+            with open(self.history_file, "r", encoding="utf-8") as f:
+                records = json.load(f)
+            filtered = [r for r in records if r.get("id") != audit_id]
+            with open(self.history_file, "w", encoding="utf-8") as f:
+                json.dump(filtered, f, indent=2)
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to delete audit record {audit_id}: {e}")
+            return False
+
+    def clear_audit_history(self) -> bool:
+        try:
+            if os.path.exists(self.history_file):
+                os.remove(self.history_file)
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to clear audit history: {e}")
+            return False
 
     @property
     def provider(self):
@@ -870,7 +973,7 @@ Return ONLY a valid JSON object matching this schema:
                 sb.matched_heading = best_sa.heading
                 sb.alignment_status = "aligned" if best_score > 3 else "reference"
 
-        return CrossReferenceResponse(
+        res_obj = CrossReferenceResponse(
             doc_a=doc_a_meta,
             doc_b=doc_b_meta,
             understanding_a=understanding_a,
@@ -882,6 +985,12 @@ Return ONLY a valid JSON object matching this schema:
             comparison_matrix=comparison_matrix,
             summary=summary,
         )
+        try:
+            self.save_audit_record(res_obj)
+        except Exception as e:
+            logger.warning(f"Failed to auto-save audit record: {e}")
+
+        return res_obj
 
     def query_cross_docs(self, doc_a_id: str, doc_b_id: str, question: str) -> CrossDocQueryResponse:
         doc_a_meta, text_a, _ = self._get_document_text(doc_a_id)
