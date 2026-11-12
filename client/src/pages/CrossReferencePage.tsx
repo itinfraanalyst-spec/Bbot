@@ -1,27 +1,29 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  GitCompare,
-  ArrowLeft,
+  UploadCloud,
   FileText,
-  Sparkles,
-  Download,
   AlertTriangle,
   CheckCircle2,
-  ArrowRight,
-  ExternalLink,
-  RefreshCw,
-  SlidersHorizontal,
-  Split,
-  Network,
-  Table as TableIcon,
+  GitCompare,
+  Download,
+  Sparkles,
+  MessageSquare,
+  BookOpen,
+  SplitSquareVertical,
+  Layers,
   Send,
+  Loader2,
+  Info,
+  RefreshCw,
+  Users,
+  Target,
+  FileSpreadsheet,
+  FileCode,
   X,
-  ShieldAlert,
 } from 'lucide-react';
-import clsx from 'clsx';
 
-interface DocumentMeta {
+interface DocumentSummaryItem {
   id: string;
   filename: string;
   size: number;
@@ -29,6 +31,29 @@ interface DocumentMeta {
   status: string;
   created_at?: string;
   summary?: string;
+}
+
+interface DocumentUnderstanding {
+  doc_id: string;
+  filename: string;
+  document_type: string;
+  executive_summary: string;
+  core_purpose: string;
+  target_audience: string;
+  key_takeaways: string[];
+  key_entities_or_roles: string[];
+  topics_covered: string[];
+  word_count: number;
+  page_count: number;
+}
+
+interface TopicComparisonItem {
+  id: string;
+  topic: string;
+  doc_a_stance: string;
+  doc_b_stance: string;
+  status: 'aligned' | 'conflict' | 'doc_a_only' | 'doc_b_only' | 'stricter' | 'supersedes';
+  verdict: string;
 }
 
 interface DocumentSection {
@@ -39,6 +64,7 @@ interface DocumentSection {
   content: string;
   page_start?: number;
   page_end?: number;
+  chunk_index: number;
 }
 
 interface CrossReferenceLink {
@@ -48,8 +74,8 @@ interface CrossReferenceLink {
   relation: 'aligned' | 'contradiction' | 'reference' | 'gap' | 'supersedes';
   confidence: number;
   summary: string;
-  source_quote: string;
-  target_quote: string;
+  source_quote?: string;
+  target_quote?: string;
   recommendation?: string;
 }
 
@@ -75,182 +101,211 @@ interface CrossDocSummary {
   key_recommendations: string[];
 }
 
-interface CrossReferenceData {
-  doc_a: DocumentMeta;
-  doc_b: DocumentMeta;
+interface CrossReferenceResponse {
+  doc_a: DocumentSummaryItem;
+  doc_b: DocumentSummaryItem;
+  understanding_a?: DocumentUnderstanding;
+  understanding_b?: DocumentUnderstanding;
   sections_a: DocumentSection[];
   sections_b: DocumentSection[];
   links: CrossReferenceLink[];
   discrepancies: DiscrepancyItem[];
+  comparison_matrix: TopicComparisonItem[];
   summary: CrossDocSummary;
 }
 
-const RELATION_CONFIG = {
-  aligned: {
-    label: 'Consistent / Aligned',
-    color: '#10b981',
-    bgColor: 'bg-emerald-500/10 dark:bg-emerald-500/20',
-    textColor: 'text-emerald-700 dark:text-emerald-400',
-    borderColor: 'border-emerald-500/30',
-    badge: 'Consistent',
-  },
-  contradiction: {
-    label: 'Conflict / Discrepancy',
-    color: '#ef4444',
-    bgColor: 'bg-rose-500/10 dark:bg-rose-500/20',
-    textColor: 'text-rose-700 dark:text-rose-400',
-    borderColor: 'border-rose-500/30',
-    badge: 'Conflict',
-  },
-  reference: {
-    label: 'Direct Citation',
-    color: '#3b82f6',
-    bgColor: 'bg-blue-500/10 dark:bg-blue-500/20',
-    textColor: 'text-blue-700 dark:text-blue-400',
-    borderColor: 'border-blue-500/30',
-    badge: 'Citation',
-  },
-  gap: {
-    label: 'Policy Gap / Missing',
-    color: '#f59e0b',
-    bgColor: 'bg-amber-500/10 dark:bg-amber-500/20',
-    textColor: 'text-amber-700 dark:text-amber-400',
-    borderColor: 'border-amber-500/30',
-    badge: 'Gap',
-  },
-  supersedes: {
-    label: 'Supersedes / Replaces',
-    color: '#8b5cf6',
-    bgColor: 'bg-violet-500/10 dark:bg-violet-500/20',
-    textColor: 'text-violet-700 dark:text-violet-400',
-    borderColor: 'border-violet-500/30',
-    badge: 'Supersedes',
-  },
-};
-
 export function CrossReferencePage() {
-  // Document selection
-  const [documents, setDocuments] = useState<DocumentMeta[]>([]);
-  const [selectedDocA, setSelectedDocA] = useState<string>('');
-  const [selectedDocB, setSelectedDocB] = useState<string>('');
-  const [mode, setMode] = useState<string>('audit');
-  const [focusQuery, setFocusQuery] = useState<string>('');
+  const [documents, setDocuments] = useState<DocumentSummaryItem[]>([]);
+  const [docAId, setDocAId] = useState<string>('');
+  const [docBId, setDocBId] = useState<string>('');
+
+  // Upload state
+  const [isUploadingA, setIsUploadingA] = useState(false);
+  const [isUploadingB, setIsUploadingB] = useState(false);
+  const [understandingA, setUnderstandingA] = useState<DocumentUnderstanding | null>(null);
+  const [understandingB, setUnderstandingB] = useState<DocumentUnderstanding | null>(null);
 
   // Analysis state
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisData, setAnalysisData] = useState<CrossReferenceData | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<CrossReferenceResponse | null>(null);
 
-  // Active view tab: 'graph' | 'split' | 'matrix'
-  const [activeTab, setActiveTab] = useState<'graph' | 'split' | 'matrix'>('graph');
+  // Active view tab: 'understanding' | 'matrix' | 'conflicts' | 'reader' | 'copilot'
+  const [activeTab, setActiveTab] = useState<'understanding' | 'matrix' | 'conflicts' | 'reader' | 'copilot'>('understanding');
+  const [understandingSubTab, setUnderstandingSubTab] = useState<'both' | 'doc_a' | 'doc_b'>('both');
 
-  // Interactive selection
-  const [selectedLink, setSelectedLink] = useState<CrossReferenceLink | null>(null);
-  const [hoveredSectionId, setHoveredSectionId] = useState<string | null>(null);
-  const [activeSectionA, setActiveSectionA] = useState<string | null>(null);
-  const [activeSectionB, setActiveSectionB] = useState<string | null>(null);
+  // Interactive filters
+  const [selectedSectionAId, setSelectedSectionAId] = useState<string | null>(null);
+  const [selectedSectionBId, setSelectedSectionBId] = useState<string | null>(null);
 
-  // Copilot drawer state
-  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
-  const [copilotQuestion, setCopilotQuestion] = useState('');
+  // Copilot state
+  const [copilotQuery, setCopilotQuery] = useState('');
   const [isCopilotLoading, setIsCopilotLoading] = useState(false);
-  const [copilotHistory, setCopilotHistory] = useState<Array<{ q: string; a: string }>>([]);
+  const [copilotChat, setCopilotChat] = useState<Array<{ role: 'user' | 'assistant'; text: string; verdict?: string }>>([
+    {
+      role: 'assistant',
+      text: 'Namaste! Main aapka Cross-Document Intelligence Copilot hoon. Dono documents upload ya select karein aur main kisi bhi clause, difference, policy limit ya summary ka instant answer dunga.',
+    },
+  ]);
 
-  // Fetch available documents on mount
+  // Load available documents list on mount
   useEffect(() => {
-    async function loadDocuments() {
-      try {
-        const res = await fetch('/api/cross-reference/documents', { credentials: 'include' });
-        if (res.ok) {
-          const data = await res.json();
-          const docs: DocumentMeta[] = data.documents || [];
-          setDocuments(docs);
-          if (docs.length >= 2) {
-            setSelectedDocA(docs[0].id);
-            setSelectedDocB(docs[1].id);
-          } else if (docs.length === 1) {
-            setSelectedDocA(docs[0].id);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load documents for cross-referencing:', err);
-      }
-    }
     loadDocuments();
   }, []);
 
-  // Run comparative analysis
-  const runAnalysis = async () => {
-    if (!selectedDocA || !selectedDocB) {
-      setError('Please select two distinct documents to cross-reference.');
+  const loadDocuments = async () => {
+    try {
+      const res = await fetch('/api/cross-reference/documents', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setDocuments(data.documents || []);
+        if (data.documents && data.documents.length >= 2) {
+          if (!docAId) setDocAId(data.documents[0].id);
+          if (!docBId) setDocBId(data.documents[1].id);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load documents list:', err);
+    }
+  };
+
+  // Direct file upload handler
+  const handleFileUpload = async (file: File, slot: 'doc_a' | 'doc_b') => {
+    if (!file) return;
+    setErrorMsg(null);
+    const isSlotA = slot === 'doc_a';
+    if (isSlotA) setIsUploadingA(true);
+    else setIsUploadingB(true);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('slot', slot);
+
+    try {
+      const res = await fetch('/api/cross-reference/upload', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ detail: 'Upload failed' }));
+        throw new Error(errData.detail || 'Upload failed');
+      }
+
+      const data = await res.json();
+      const docItem: DocumentSummaryItem = {
+        id: data.doc_id,
+        filename: data.filename,
+        size: data.size,
+        page_count: data.page_count,
+        status: 'READY',
+      };
+
+      // Add to docs list
+      setDocuments(prev => {
+        const filtered = prev.filter(d => d.id !== data.doc_id);
+        return [docItem, ...filtered];
+      });
+
+      if (isSlotA) {
+        setDocAId(data.doc_id);
+        setUnderstandingA(data.understanding);
+      } else {
+        setDocBId(data.doc_id);
+        setUnderstandingB(data.understanding);
+      }
+    } catch (err: any) {
+      setErrorMsg(`Upload failed: ${err.message || 'Check file format or server status'}`);
+    } finally {
+      if (isSlotA) setIsUploadingA(false);
+      else setIsUploadingB(false);
+    }
+  };
+
+  // Run analysis
+  const handleAnalyze = async () => {
+    if (!docAId || !docBId) {
+      setErrorMsg('Kripya Document 1 aur Document 2 dono select ya upload karein.');
       return;
     }
-    if (selectedDocA === selectedDocB) {
-      setError('Document A and Document B must be different.');
+    if (docAId === docBId) {
+      setErrorMsg('Compare karne ke liye do alag documents chunein.');
       return;
     }
 
+    setErrorMsg(null);
     setIsAnalyzing(true);
-    setError(null);
-    setSelectedLink(null);
-
     try {
       const res = await fetch('/api/cross-reference/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
-          doc_a_id: selectedDocA,
-          doc_b_id: selectedDocB,
-          mode,
-          focus_query: focusQuery.trim() || null,
+          doc_a_id: docAId,
+          doc_b_id: docBId,
+          mode: 'audit',
         }),
+        credentials: 'include',
       });
 
       if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.detail || 'Cross-referencing analysis failed');
+        const errData = await res.json().catch(() => ({ detail: 'Analysis failed' }));
+        throw new Error(errData.detail || 'Analysis failed');
       }
 
-      const data: CrossReferenceData = await res.json();
-      setAnalysisData(data);
-      if (data.links.length > 0) {
-        setSelectedLink(data.links[0]);
-      }
+      const result: CrossReferenceResponse = await res.json();
+      setAnalysisResult(result);
+      if (result.understanding_a) setUnderstandingA(result.understanding_a);
+      if (result.understanding_b) setUnderstandingB(result.understanding_b);
+
+      if (result.sections_a?.length > 0) setSelectedSectionAId(result.sections_a[0].id);
+      if (result.sections_b?.length > 0) setSelectedSectionBId(result.sections_b[0].id);
     } catch (err: any) {
-      setError(err.message || 'Analysis failed. Please try again.');
+      setErrorMsg(err.message || 'Analysis run karne me problem aayi.');
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  // Ask Copilot across documents
-  const handleAskCopilot = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!copilotQuestion.trim() || !selectedDocA || !selectedDocB) return;
+  // Copilot Ask
+  const handleSendCopilotQuery = async (queryText?: string) => {
+    const q = (queryText || copilotQuery).trim();
+    if (!q || !docAId || !docBId) return;
 
-    const q = copilotQuestion.trim();
-    setCopilotQuestion('');
+    setCopilotChat(prev => [...prev, { role: 'user', text: q }]);
+    setCopilotQuery('');
     setIsCopilotLoading(true);
 
     try {
       const res = await fetch('/api/cross-reference/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
-          doc_a_id: selectedDocA,
-          doc_b_id: selectedDocB,
+          doc_a_id: docAId,
+          doc_b_id: docBId,
           question: q,
         }),
+        credentials: 'include',
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        setCopilotHistory((prev) => [...prev, { q, a: data.answer }]);
-      }
+      if (!res.ok) throw new Error('Copilot inquiry failed');
+      const data = await res.json();
+      setCopilotChat(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          text: data.answer,
+          verdict: data.comparison_verdict,
+        },
+      ]);
     } catch (err) {
-      console.error('Copilot query error:', err);
+      setCopilotChat(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          text: 'Maaf kijiye, comparative answer generate karte samay problem hui. Dobara try karein.',
+        },
+      ]);
     } finally {
       setIsCopilotLoading(false);
     }
@@ -258,822 +313,981 @@ export function CrossReferencePage() {
 
   // Export report
   const handleExport = async (format: 'markdown' | 'json') => {
-    if (!analysisData) return;
+    if (!analysisResult) return;
     try {
       const res = await fetch('/api/cross-reference/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           format,
-          data: analysisData,
+          data: analysisResult,
         }),
+        credentials: 'include',
       });
-      if (res.ok) {
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `cross_reference_audit_${analysisData.doc_a.id.slice(0, 6)}_${analysisData.doc_b.id.slice(0, 6)}.${format === 'json' ? 'json' : 'md'}`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
-      }
+
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cross_reference_audit_${Date.now()}.${format === 'markdown' ? 'md' : 'json'}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('Export error:', err);
+      alert('Report export karne me dikkat aayi.');
     }
   };
 
-  // Lookup maps for fast section finding
-  const sectionMapA = useMemo(() => {
-    const map = new Map<string, DocumentSection>();
-    analysisData?.sections_a.forEach((s) => map.set(s.id, s));
-    return map;
-  }, [analysisData]);
+  const getDocName = (id: string, fallback: string) => {
+    const d = documents.find(doc => doc.id === id);
+    return d ? d.filename : fallback;
+  };
 
-  const sectionMapB = useMemo(() => {
-    const map = new Map<string, DocumentSection>();
-    analysisData?.sections_b.forEach((s) => map.set(s.id, s));
-    return map;
-  }, [analysisData]);
+  const getFileIcon = (filename: string) => {
+    const lower = filename.toLowerCase();
+    if (lower.endsWith('.xlsx') || lower.endsWith('.xls') || lower.endsWith('.csv')) {
+      return <FileSpreadsheet className="text-emerald-500 shrink-0" size={18} />;
+    }
+    if (lower.endsWith('.json') || lower.endsWith('.xml') || lower.endsWith('.md')) {
+      return <FileCode className="text-indigo-500 shrink-0" size={18} />;
+    }
+    return <FileText className="text-blue-500 shrink-0" size={18} />;
+  };
 
   return (
-    <div className="flex h-screen w-screen flex-col bg-[var(--bg-primary)] text-[var(--text-primary)] overflow-hidden font-sans">
-      {/* Top Navigation Bar */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 z-20">
-        <div className="flex items-center gap-3">
-          <Link
-            to="/"
-            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] hover:text-[var(--text-primary)] transition-colors"
-          >
-            <ArrowLeft size={14} />
-            <span className="hidden sm:inline">Back to Chat</span>
-          </Link>
-          <div className="h-4 w-px bg-[var(--border-subtle)]" />
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-500/15 text-teal-600 dark:text-teal-400">
-              <GitCompare size={16} />
-            </div>
-            <div>
-              <h1 className="text-sm font-bold tracking-tight flex items-center gap-1.5">
-                Cross-Document Intelligence Portal
-                <span className="rounded-full bg-teal-500/10 px-2 py-0.5 text-[0.65rem] font-bold text-teal-700 dark:text-teal-300 border border-teal-500/30">
-                  Visual Reference Matrix
-                </span>
-              </h1>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
+      {/* Top Header */}
+      <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 py-3 shadow-xs">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Link
+              to="/"
+              className="flex items-center gap-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white text-xs font-medium transition-colors"
+            >
+              <span>← Chat</span>
+            </Link>
+            <div className="h-4 w-px bg-slate-300 dark:bg-slate-700" />
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center shadow-xs">
+                <GitCompare size={18} />
+              </div>
+              <div>
+                <h1 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  Cross-Document Intelligence Portal
+                  <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300">
+                    Smart Audit
+                  </span>
+                </h1>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">
+                  Upload any documents to understand their essence, compare clauses side-by-side, and identify discrepancies.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Right Action Controls */}
-        <div className="flex items-center gap-2">
-          {analysisData && (
-            <>
-              {/* Tab Toggles */}
-              <div className="flex rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)] p-0.5 text-xs">
+          <div className="flex items-center gap-2">
+            <Link
+              to="/studio"
+              className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium transition-colors"
+            >
+              Visual Studio
+            </Link>
+            {analysisResult && (
+              <div className="flex items-center gap-1.5">
                 <button
-                  type="button"
-                  onClick={() => setActiveTab('graph')}
-                  className={clsx(
-                    'flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer',
-                    activeTab === 'graph'
-                      ? 'bg-[var(--accent)] text-white shadow-xs'
-                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                  )}
-                  title="Interactive Visual Link Graph"
-                >
-                  <Network size={13} />
-                  <span className="hidden md:inline">Link Graph</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('split')}
-                  className={clsx(
-                    'flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer',
-                    activeTab === 'split'
-                      ? 'bg-[var(--accent)] text-white shadow-xs'
-                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                  )}
-                  title="Synchronized Dual Document Reader"
-                >
-                  <Split size={13} />
-                  <span className="hidden md:inline">Dual Reader</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('matrix')}
-                  className={clsx(
-                    'flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer',
-                    activeTab === 'matrix'
-                      ? 'bg-[var(--accent)] text-white shadow-xs'
-                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                  )}
-                  title="Executive Conflict & Discrepancy Matrix"
-                >
-                  <TableIcon size={13} />
-                  <span className="hidden md:inline">Conflict Matrix</span>
-                </button>
-              </div>
-
-              {/* Copilot Drawer Toggle */}
-              <button
-                type="button"
-                onClick={() => setIsCopilotOpen(!isCopilotOpen)}
-                className={clsx(
-                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer',
-                  isCopilotOpen
-                    ? 'bg-indigo-500/15 border-indigo-500 text-indigo-700 dark:text-indigo-300'
-                    : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]'
-                )}
-                title="Cross-Doc AI Copilot"
-              >
-                <Sparkles size={13} className="text-amber-500" />
-                <span className="hidden lg:inline">AI Auditor</span>
-              </button>
-
-              {/* Export Dropdown */}
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
                   onClick={() => handleExport('markdown')}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] text-xs font-semibold transition-all cursor-pointer"
-                  title="Export Audit Report as Markdown"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-semibold shadow-xs transition-colors"
                 >
-                  <Download size={12} />
-                  <span>Report</span>
+                  <Download size={13} />
+                  <span>Report (MD)</span>
+                </button>
+                <button
+                  onClick={() => handleExport('json')}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold shadow-xs transition-colors"
+                  title="Export raw JSON"
+                >
+                  JSON
                 </button>
               </div>
-            </>
-          )}
-
-          <Link
-            to="/studio"
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300 hover:bg-violet-500/20 text-xs font-semibold transition-colors shrink-0"
-            title="Open Visual Studio"
-          >
-            <span>Visual Studio</span>
-            <ExternalLink size={12} />
-          </Link>
+            )}
+          </div>
         </div>
       </header>
 
-      {/* Control Bar: Document Selection & Audit Triggers */}
-      <div className="border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-2.5 shrink-0 z-10 shadow-2xs">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {/* Document A & B Selectors */}
-          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[300px]">
-            {/* Doc A */}
-            <div className="flex items-center gap-1.5 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-lg px-2.5 py-1 text-xs">
-              <span className="font-bold text-teal-600 dark:text-teal-400">Doc A:</span>
-              <select
-                value={selectedDocA}
-                onChange={(e) => setSelectedDocA(e.target.value)}
-                disabled={isAnalyzing}
-                className="bg-transparent text-[var(--text-primary)] font-medium focus:outline-none cursor-pointer max-w-[180px] sm:max-w-[240px] truncate"
-              >
-                <option value="" disabled>Select Document A</option>
-                {documents.map((doc) => (
-                  <option key={doc.id} value={doc.id} className="bg-[var(--bg-surface)] text-[var(--text-primary)]">
-                    {doc.filename}
-                  </option>
-                ))}
-              </select>
+      {/* Main Content Container */}
+      <main className="max-w-7xl mx-auto w-full p-4 sm:p-6 flex-1 flex flex-col gap-6">
+        {/* Error Alert */}
+        {errorMsg && (
+          <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 dark:bg-red-950/40 dark:border-red-900 text-red-700 dark:text-red-300 text-xs flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={16} className="shrink-0 text-red-500" />
+              <span>{errorMsg}</span>
+            </div>
+            <button onClick={() => setErrorMsg(null)} className="p-1 hover:bg-red-100 dark:hover:bg-red-900 rounded">
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
+        {/* STEP 1: Two Simple Upload & Select Boxes */}
+        <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-teal-600 text-white text-[11px] flex items-center justify-center font-bold">1</span>
+                Upload or Select Two Documents
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Supports PDF, Word (DOCX), Excel (XLSX, CSV), Markdown, TXT, PPTX & JSON files.
+              </p>
+            </div>
+            <button
+              onClick={loadDocuments}
+              className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1"
+              title="Refresh list"
+            >
+              <RefreshCw size={12} />
+              <span>Refresh</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* DOCUMENT 1 (A) */}
+            <div className={`p-4 rounded-xl border-2 transition-all ${docAId ? 'border-teal-500/40 bg-teal-50/20 dark:bg-teal-950/10' : 'border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50'}`}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-teal-700 dark:text-teal-400 flex items-center gap-1.5">
+                  <FileText size={14} />
+                  Document 1 (Primary / Baseline)
+                </span>
+                {docAId && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 font-semibold flex items-center gap-1">
+                    <CheckCircle2 size={11} /> Ready
+                  </span>
+                )}
+              </div>
+
+              {/* Drag & Drop Zone */}
+              <label className="block cursor-pointer">
+                <input
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      handleFileUpload(e.target.files[0], 'doc_a');
+                    }
+                  }}
+                  accept=".pdf,.docx,.xlsx,.xls,.csv,.txt,.md,.pptx,.json"
+                />
+                <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-teal-500 transition-colors flex items-center justify-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">
+                  {isUploadingA ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin text-teal-600" />
+                      <span>Extracting & Understanding Document 1...</span>
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud size={16} className="text-teal-600 dark:text-teal-400" />
+                      <span>Drag & Drop or Click to Upload File</span>
+                    </>
+                  )}
+                </div>
+              </label>
+
+              {/* Or Select from Existing dropdown */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Or Select:</span>
+                <select
+                  value={docAId}
+                  onChange={(e) => setDocAId(e.target.value)}
+                  className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:ring-1 focus:ring-teal-500"
+                >
+                  <option value="">-- Choose Document 1 --</option>
+                  {documents.map((d) => (
+                    <option key={`docA-${d.id}`} value={d.id}>
+                      {d.filename} ({d.page_count} pgs, {(d.size / 1024).toFixed(0)} KB)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Selected File Badge */}
+              {docAId && (
+                <div className="mt-2.5 p-2 rounded-lg bg-teal-100/40 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800/40 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {getFileIcon(getDocName(docAId, 'Doc 1'))}
+                    <span className="font-semibold text-slate-800 dark:text-slate-100 truncate">
+                      {getDocName(docAId, 'Document 1')}
+                    </span>
+                  </div>
+                  {understandingA && (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-teal-200/50 dark:bg-teal-800/40 text-teal-800 dark:text-teal-300 font-medium shrink-0">
+                      {understandingA.document_type}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
-            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-[var(--bg-surface-hover)] text-[var(--text-muted)]">
-              <GitCompare size={12} />
-            </div>
+            {/* DOCUMENT 2 (B) */}
+            <div className={`p-4 rounded-xl border-2 transition-all ${docBId ? 'border-indigo-500/40 bg-indigo-50/20 dark:bg-indigo-950/10' : 'border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50'}`}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
+                  <FileText size={14} />
+                  Document 2 (Comparison / Target)
+                </span>
+                {docBId && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 font-semibold flex items-center gap-1">
+                    <CheckCircle2 size={11} /> Ready
+                  </span>
+                )}
+              </div>
 
-            {/* Doc B */}
-            <div className="flex items-center gap-1.5 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-lg px-2.5 py-1 text-xs">
-              <span className="font-bold text-sky-600 dark:text-sky-400">Doc B:</span>
-              <select
-                value={selectedDocB}
-                onChange={(e) => setSelectedDocB(e.target.value)}
-                disabled={isAnalyzing}
-                className="bg-transparent text-[var(--text-primary)] font-medium focus:outline-none cursor-pointer max-w-[180px] sm:max-w-[240px] truncate"
-              >
-                <option value="" disabled>Select Document B</option>
-                {documents.map((doc) => (
-                  <option key={doc.id} value={doc.id} className="bg-[var(--bg-surface)] text-[var(--text-primary)]">
-                    {doc.filename}
-                  </option>
-                ))}
-              </select>
-            </div>
+              {/* Drag & Drop Zone */}
+              <label className="block cursor-pointer">
+                <input
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      handleFileUpload(e.target.files[0], 'doc_b');
+                    }
+                  }}
+                  accept=".pdf,.docx,.xlsx,.xls,.csv,.txt,.md,.pptx,.json"
+                />
+                <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-indigo-500 transition-colors flex items-center justify-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">
+                  {isUploadingB ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin text-indigo-600" />
+                      <span>Extracting & Understanding Document 2...</span>
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud size={16} className="text-indigo-600 dark:text-indigo-400" />
+                      <span>Drag & Drop or Click to Upload File</span>
+                    </>
+                  )}
+                </div>
+              </label>
 
-            {/* Mode Selector */}
-            <div className="flex items-center gap-1.5 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-xs">
-              <SlidersHorizontal size={12} className="text-[var(--text-muted)]" />
-              <select
-                value={mode}
-                onChange={(e) => setMode(e.target.value)}
-                disabled={isAnalyzing}
-                className="bg-transparent text-[var(--text-primary)] font-medium focus:outline-none cursor-pointer"
-              >
-                <option value="audit" className="bg-[var(--bg-surface)] text-[var(--text-primary)]">Full Conflict & Audit</option>
-                <option value="traceability" className="bg-[var(--bg-surface)] text-[var(--text-primary)]">Clause Traceability</option>
-                <option value="diff" className="bg-[var(--bg-surface)] text-[var(--text-primary)]">Version Revision Diff</option>
-              </select>
-            </div>
+              {/* Or Select from Existing dropdown */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Or Select:</span>
+                <select
+                  value={docBId}
+                  onChange={(e) => setDocBId(e.target.value)}
+                  className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="">-- Choose Document 2 --</option>
+                  {documents.map((d) => (
+                    <option key={`docB-${d.id}`} value={d.id}>
+                      {d.filename} ({d.page_count} pgs, {(d.size / 1024).toFixed(0)} KB)
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            {/* Topic Filter */}
-            <div className="flex items-center gap-1.5 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-xs">
-              <input
-                type="text"
-                placeholder="Filter topic..."
-                value={focusQuery}
-                onChange={(e) => setFocusQuery(e.target.value)}
-                disabled={isAnalyzing}
-                className="bg-transparent text-[var(--text-primary)] text-xs focus:outline-none placeholder-[var(--text-muted)] w-28 sm:w-40"
-              />
+              {/* Selected File Badge */}
+              {docBId && (
+                <div className="mt-2.5 p-2 rounded-lg bg-indigo-100/40 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800/40 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {getFileIcon(getDocName(docBId, 'Doc 2'))}
+                    <span className="font-semibold text-slate-800 dark:text-slate-100 truncate">
+                      {getDocName(docBId, 'Document 2')}
+                    </span>
+                  </div>
+                  {understandingB && (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-200/50 dark:bg-indigo-800/40 text-indigo-800 dark:text-indigo-300 font-medium shrink-0">
+                      {understandingB.document_type}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Action Trigger */}
-          <div className="flex items-center gap-2">
+          {/* Big Action Button */}
+          <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              {docAId && docBId ? (
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
+                  <CheckCircle2 size={13} /> Dono documents ready hain. Click karein to begin intelligent cross-referencing.
+                </span>
+              ) : (
+                <span>Dono documents upload ya select karein comparative analysis ke liye.</span>
+              )}
+            </div>
             <button
-              type="button"
-              onClick={runAnalysis}
-              disabled={isAnalyzing || !selectedDocA || !selectedDocB}
-              className="flex items-center gap-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white px-4 py-1.5 text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleAnalyze}
+              disabled={isAnalyzing || !docAId || !docBId}
+              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2"
             >
               {isAnalyzing ? (
                 <>
-                  <RefreshCw size={13} className="animate-spin" />
-                  <span>Cross-Auditing...</span>
+                  <Loader2 size={15} className="animate-spin" />
+                  <span>Cross-Auditing Documents...</span>
                 </>
               ) : (
                 <>
-                  <Sparkles size={13} />
-                  <span>Run Cross-Reference</span>
+                  <Sparkles size={15} />
+                  <span>⚡ Compare & Understand Documents</span>
                 </>
               )}
             </button>
           </div>
-        </div>
+        </section>
 
-        {error && (
-          <div className="mt-2 flex items-center gap-2 rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-700 dark:text-rose-400">
-            <AlertTriangle size={13} className="shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Main Workspace Body */}
-      <div className="relative flex flex-1 overflow-hidden">
-        {/* Central Content Area */}
-        <main className="flex-1 overflow-y-auto bg-[var(--bg-primary)] p-4">
-          {!analysisData && !isAnalyzing ? (
-            <div className="flex h-full flex-col items-center justify-center text-center p-6 max-w-xl mx-auto">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-teal-500/10 text-teal-600 dark:text-teal-400 mb-4 shadow-sm">
-                <GitCompare size={32} />
-              </div>
-              <h2 className="text-lg font-bold text-[var(--text-primary)] mb-2">
-                Multi-Document Cross-Referencing & Alignment Portal
-              </h2>
-              <p className="text-xs text-[var(--text-secondary)] mb-6 leading-relaxed">
-                Compare any two enterprise SOPs, policies, regulatory frameworks, or contracts. Discover hidden policy contradictions, extract clause citations, and view an interactive linkage map connecting specific provisions.
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full text-left text-xs mb-6">
-                <div className="p-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-                  <div className="flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400 mb-1">
-                    <CheckCircle2 size={13} /> Consistent Alignment
-                  </div>
-                  <p className="text-[0.7rem] text-[var(--text-muted)]">
-                    Identifies clauses with shared standards and mutual compliance.
-                  </p>
+        {/* STEP 2: Results Section with Clean 5 Tabs */}
+        {analysisResult && (
+          <section className="flex flex-col gap-5">
+            {/* Quick Metrics Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-3 shadow-xs">
+                <div className="w-10 h-10 rounded-lg bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300 flex items-center justify-center font-bold text-sm">
+                  {analysisResult.summary.alignment_score}%
                 </div>
-                <div className="p-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-                  <div className="flex items-center gap-1.5 font-bold text-rose-600 dark:text-rose-400 mb-1">
-                    <ShieldAlert size={13} /> Conflict Detection
+                <div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Alignment Match</div>
+                  <div className="text-xs font-bold text-slate-900 dark:text-white">
+                    {analysisResult.summary.alignment_score >= 80 ? 'High Harmony' : 'Moderate Divergence'}
                   </div>
-                  <p className="text-[0.7rem] text-[var(--text-muted)]">
-                    Flags differing spending limits, approval triggers, or opposing rules.
-                  </p>
-                </div>
-                <div className="p-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-                  <div className="flex items-center gap-1.5 font-bold text-blue-600 dark:text-blue-400 mb-1">
-                    <Network size={13} /> Visual Graph
-                  </div>
-                  <p className="text-[0.7rem] text-[var(--text-muted)]">
-                    Interactive diagram visualizing cross-document relationships.
-                  </p>
                 </div>
               </div>
+
+              <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-3 shadow-xs">
+                <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 flex items-center justify-center font-bold text-sm">
+                  {analysisResult.summary.agreed_count}
+                </div>
+                <div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Consistent Clauses</div>
+                  <div className="text-xs font-bold text-slate-900 dark:text-white">Aligned Points</div>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-3 shadow-xs">
+                <div className="w-10 h-10 rounded-lg bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300 flex items-center justify-center font-bold text-sm">
+                  {analysisResult.discrepancies.length}
+                </div>
+                <div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Conflicts & Gaps</div>
+                  <div className="text-xs font-bold text-slate-900 dark:text-white">Action Required</div>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-3 shadow-xs">
+                <div className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300 flex items-center justify-center font-bold text-sm">
+                  {analysisResult.comparison_matrix.length || analysisResult.links.length}
+                </div>
+                <div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Topics Analyzed</div>
+                  <div className="text-xs font-bold text-slate-900 dark:text-white">Cross-Audit Points</div>
+                </div>
+              </div>
+            </div>
+
+            {/* TAB NAVIGATION */}
+            <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 overflow-x-auto pb-px">
               <button
-                type="button"
-                onClick={runAnalysis}
-                disabled={documents.length < 2}
-                className="rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white px-5 py-2 text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                onClick={() => setActiveTab('understanding')}
+                className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap ${
+                  activeTab === 'understanding'
+                    ? 'border-teal-600 text-teal-600 dark:border-teal-400 dark:text-teal-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                }`}
               >
-                {documents.length < 2 ? 'Upload at least 2 documents in chat' : 'Analyze Current Selection'}
+                <BookOpen size={14} />
+                <span>📑 Document Understanding</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('matrix')}
+                className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap ${
+                  activeTab === 'matrix'
+                    ? 'border-teal-600 text-teal-600 dark:border-teal-400 dark:text-teal-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                }`}
+              >
+                <Layers size={14} />
+                <span>⚖️ Topic-by-Topic Comparison</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('conflicts')}
+                className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap ${
+                  activeTab === 'conflicts'
+                    ? 'border-rose-600 text-rose-600 dark:border-rose-400 dark:text-rose-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                }`}
+              >
+                <AlertTriangle size={14} />
+                <span>🚨 Conflicts & Gaps ({analysisResult.discrepancies.length})</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('reader')}
+                className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap ${
+                  activeTab === 'reader'
+                    ? 'border-teal-600 text-teal-600 dark:border-teal-400 dark:text-teal-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                }`}
+              >
+                <SplitSquareVertical size={14} />
+                <span>📖 Side-by-Side Reader</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('copilot')}
+                className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap ${
+                  activeTab === 'copilot'
+                    ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                }`}
+              >
+                <MessageSquare size={14} />
+                <span>💬 Ask AI Copilot</span>
               </button>
             </div>
-          ) : isAnalyzing ? (
-            <div className="flex h-full flex-col items-center justify-center text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 mb-3 animate-pulse">
-                <RefreshCw size={24} className="animate-spin" />
-              </div>
-              <h3 className="text-sm font-bold text-[var(--text-primary)] mb-1">
-                Synthesizing Cross-Document Intelligence...
-              </h3>
-              <p className="text-xs text-[var(--text-muted)] max-w-sm">
-                Parsing clauses, computing semantic alignment, and verifying operational thresholds between documents.
-              </p>
-            </div>
-          ) : analysisData && (
-            <div className="space-y-4">
-              {/* Executive Summary Metrics Card */}
-              <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-[var(--border-subtle)]">
-                  <div>
-                    <span className="text-[0.65rem] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                      Cross-Doc Audit Overview
-                    </span>
-                    <h3 className="text-sm font-bold text-[var(--text-primary)]">
-                      {analysisData.doc_a.filename} <span className="text-[var(--text-muted)] font-normal">vs</span> {analysisData.doc_b.filename}
-                    </h3>
+
+            {/* TAB 1: DOCUMENT UNDERSTANDING */}
+            {activeTab === 'understanding' && (
+              <div className="flex flex-col gap-4">
+                {/* Executive Audit Overview Card */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-teal-500/10 via-cyan-500/10 to-indigo-500/10 border border-teal-500/30 p-5">
+                  <div className="flex items-center gap-2 text-xs font-bold text-teal-800 dark:text-teal-300 uppercase tracking-wider mb-2">
+                    <Sparkles size={15} /> Executive Cross-Audit Verdict
                   </div>
+                  <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-medium">
+                    {analysisResult.summary.executive_summary}
+                  </p>
+                </div>
 
-                  {/* Score & Counter Badges */}
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)]">
-                      <span className="text-xs font-bold text-[var(--text-muted)]">Alignment:</span>
-                      <span className={clsx(
-                        "text-xs font-bold",
-                        analysisData.summary.alignment_score >= 80 ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
-                      )}>
-                        {analysisData.summary.alignment_score}%
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs font-bold">
-                      <CheckCircle2 size={12} />
-                      <span>{analysisData.summary.agreed_count} Consistent</span>
-                    </div>
-
-                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-400 text-xs font-bold">
-                      <AlertTriangle size={12} />
-                      <span>{analysisData.summary.conflict_count} Conflicts</span>
-                    </div>
-
-                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-700 dark:text-blue-400 text-xs font-bold">
-                      <ExternalLink size={12} />
-                      <span>{analysisData.summary.reference_count} Citations</span>
-                    </div>
+                {/* Sub-selector: View Both, Doc 1 only, or Doc 2 only */}
+                <div className="flex items-center justify-between">
+                  <div className="inline-flex p-1 rounded-xl bg-slate-200/70 dark:bg-slate-800 text-xs font-semibold">
+                    <button
+                      onClick={() => setUnderstandingSubTab('both')}
+                      className={`px-3 py-1.5 rounded-lg transition-all ${understandingSubTab === 'both' ? 'bg-white dark:bg-slate-700 shadow-xs text-slate-900 dark:text-white' : 'text-slate-500'}`}
+                    >
+                      Compare Both Summaries
+                    </button>
+                    <button
+                      onClick={() => setUnderstandingSubTab('doc_a')}
+                      className={`px-3 py-1.5 rounded-lg transition-all ${understandingSubTab === 'doc_a' ? 'bg-white dark:bg-slate-700 shadow-xs text-teal-700 dark:text-teal-300' : 'text-slate-500'}`}
+                    >
+                      Doc 1: {analysisResult.doc_a.filename}
+                    </button>
+                    <button
+                      onClick={() => setUnderstandingSubTab('doc_b')}
+                      className={`px-3 py-1.5 rounded-lg transition-all ${understandingSubTab === 'doc_b' ? 'bg-white dark:bg-slate-700 shadow-xs text-indigo-700 dark:text-indigo-300' : 'text-slate-500'}`}
+                    >
+                      Doc 2: {analysisResult.doc_b.filename}
+                    </button>
                   </div>
                 </div>
 
-                <p className="mt-3 text-xs leading-relaxed text-[var(--text-secondary)]">
-                  {analysisData.summary.executive_summary}
-                </p>
-              </div>
-
-              {/* View 1: Interactive Network Link Graph */}
-              {activeTab === 'graph' && (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                  {/* Left Column: Document A Sections */}
-                  <div className="lg:col-span-3 space-y-2">
-                    <div className="flex items-center justify-between pb-1">
-                      <span className="text-xs font-bold text-teal-600 dark:text-teal-400 truncate">
-                        {analysisData.doc_a.filename}
-                      </span>
-                      <span className="text-[0.65rem] text-[var(--text-muted)]">
-                        {analysisData.sections_a.length} sections
-                      </span>
-                    </div>
-                    {analysisData.sections_a.map((sec) => {
-                      const isHovered = hoveredSectionId === sec.id;
-                      const hasActiveLink = selectedLink?.source_section_id === sec.id || activeSectionA === sec.id;
-                      return (
-                        <div
-                          key={sec.id}
-                          onMouseEnter={() => setHoveredSectionId(sec.id)}
-                          onMouseLeave={() => setHoveredSectionId(null)}
-                          onClick={() => {
-                            setActiveSectionA(sec.id);
-                            // Find primary link
-                            const link = analysisData.links.find((l) => l.source_section_id === sec.id);
-                            if (link) setSelectedLink(link);
-                          }}
-                          className={clsx(
-                            'p-3 rounded-lg border text-xs cursor-pointer transition-all',
-                            hasActiveLink
-                              ? 'border-teal-500 bg-teal-500/10 shadow-xs ring-1 ring-teal-500/40'
-                              : isHovered
-                              ? 'border-[var(--accent)] bg-[var(--bg-surface-hover)]'
-                              : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--border-subtle)]/80'
-                          )}
-                        >
-                          <div className="font-bold text-[var(--text-primary)] mb-1 leading-snug">
-                            {sec.heading}
-                          </div>
-                          <p className="line-clamp-2 text-[0.7rem] text-[var(--text-muted)]">
-                            {sec.content}
-                          </p>
+                {/* Document Profiles Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {/* DOC A PROFILE */}
+                  {(understandingSubTab === 'both' || understandingSubTab === 'doc_a') && (
+                    <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-teal-500/30 shadow-xs flex flex-col gap-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 dark:text-teal-400">
+                            Document 1 Breakdown
+                          </span>
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 mt-0.5">
+                            {analysisResult.doc_a.filename}
+                          </h3>
                         </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Middle Column: Interactive Links & Inspection Card */}
-                  <div className="lg:col-span-6 space-y-3">
-                    <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3">
-                      <div className="flex items-center justify-between pb-2 border-b border-[var(--border-subtle)] mb-2.5">
-                        <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                          Cross-Reference Connections ({analysisData.links.length})
-                        </span>
-                        <span className="text-[0.7rem] text-[var(--text-secondary)]">Click link to inspect</span>
+                        {analysisResult.understanding_a && (
+                          <span className="px-2.5 py-1 rounded-full bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300 text-[10px] font-bold">
+                            {analysisResult.understanding_a.document_type}
+                          </span>
+                        )}
                       </div>
 
-                      {/* Link Badges List */}
-                      <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto p-1">
-                        {analysisData.links.map((link) => {
-                          const isSelected = selectedLink?.id === link.id;
-                          const cfg = RELATION_CONFIG[link.relation] || RELATION_CONFIG.aligned;
-                          const srcSec = sectionMapA.get(link.source_section_id);
-                          const tgtSec = sectionMapB.get(link.target_section_id);
+                      {analysisResult.understanding_a && (
+                        <>
+                          {/* Core Purpose */}
+                          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800 text-xs">
+                            <div className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 mb-1">
+                              <Target size={13} className="text-teal-600 dark:text-teal-400" />
+                              Primary Purpose / Goal
+                            </div>
+                            <div className="text-slate-600 dark:text-slate-300">
+                              {analysisResult.understanding_a.core_purpose}
+                            </div>
+                          </div>
 
-                          return (
-                            <button
-                              key={link.id}
-                              type="button"
-                              onClick={() => setSelectedLink(link)}
-                              className={clsx(
-                                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[0.7rem] font-semibold transition-all cursor-pointer text-left',
-                                isSelected
-                                  ? `${cfg.bgColor} ${cfg.borderColor} ${cfg.textColor} ring-2 ring-current/20 shadow-xs font-bold`
-                                  : 'border-[var(--border-subtle)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]'
-                              )}
-                            >
-                              <span
-                                className="w-2 h-2 rounded-full shrink-0"
-                                style={{ backgroundColor: cfg.color }}
-                              />
-                              <span className="truncate max-w-[120px]">{srcSec?.heading || 'Section A'}</span>
-                              <ArrowRight size={10} className="shrink-0 text-[var(--text-muted)]" />
-                              <span className="truncate max-w-[120px]">{tgtSec?.heading || 'Section B'}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
+                          {/* Executive Summary */}
+                          <div className="text-xs">
+                            <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 mb-1">
+                              <Info size={13} className="text-teal-600" />
+                              What this document is about (Summary):
+                            </div>
+                            <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                              {analysisResult.understanding_a.executive_summary}
+                            </p>
+                          </div>
 
-                    {/* Detailed Inspection Card for Active Link */}
-                    {selectedLink && (
-                      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 shadow-sm animate-in fade-in duration-200">
-                        {(() => {
-                          const cfg = RELATION_CONFIG[selectedLink.relation] || RELATION_CONFIG.aligned;
-                          const srcSec = sectionMapA.get(selectedLink.source_section_id);
-                          const tgtSec = sectionMapB.get(selectedLink.target_section_id);
+                          {/* Key Takeaways & Rules */}
+                          <div>
+                            <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5 mb-2">
+                              <CheckCircle2 size={13} className="text-emerald-500" />
+                              Key Points & Operating Rules:
+                            </div>
+                            <div className="flex flex-col gap-1.5">
+                              {analysisResult.understanding_a.key_takeaways.map((point, idx) => (
+                                <div key={idx} className="p-2 rounded-lg bg-teal-50/50 dark:bg-teal-950/20 text-xs text-slate-700 dark:text-slate-300 flex items-start gap-2 border border-teal-100 dark:border-teal-900/30">
+                                  <span className="w-4 h-4 rounded-full bg-teal-200 text-teal-800 dark:bg-teal-800 dark:text-teal-200 text-[9px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                                    {idx + 1}
+                                  </span>
+                                  <span>{point}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
 
-                          return (
+                          {/* Roles & Entities */}
+                          {analysisResult.understanding_a.key_entities_or_roles?.length > 0 && (
                             <div>
-                              <div className="flex items-center justify-between pb-2 border-b border-[var(--border-subtle)] mb-3">
-                                <div className="flex items-center gap-2">
-                                  <span
-                                    className={`px-2 py-0.5 rounded text-[0.68rem] font-bold uppercase tracking-wider ${cfg.bgColor} ${cfg.textColor}`}
-                                  >
-                                    {cfg.label}
-                                  </span>
-                                  <span className="text-[0.7rem] text-[var(--text-muted)] font-mono">
-                                    Confidence: {Math.round(selectedLink.confidence * 100)}%
-                                  </span>
-                                </div>
+                              <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1 mb-1.5">
+                                <Users size={12} /> Key Stakeholders & Entities:
                               </div>
-
-                              <p className="text-xs font-semibold text-[var(--text-primary)] mb-3 leading-snug">
-                                {selectedLink.summary}
-                              </p>
-
-                              {/* Quotes Comparison Block */}
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                                <div className="p-2.5 rounded-lg border border-teal-500/20 bg-teal-500/5 text-xs">
-                                  <div className="font-bold text-teal-700 dark:text-teal-400 mb-1 flex items-center justify-between">
-                                    <span className="truncate">{analysisData.doc_a.filename}</span>
-                                    <span className="text-[0.65rem] font-normal text-[var(--text-muted)]">Source Quote</span>
-                                  </div>
-                                  <blockquote className="italic text-[0.7rem] text-[var(--text-secondary)] border-l-2 border-teal-500/40 pl-2">
-                                    "{selectedLink.source_quote || srcSec?.content.slice(0, 160) || '...'}"
-                                  </blockquote>
-                                </div>
-
-                                <div className="p-2.5 rounded-lg border border-sky-500/20 bg-sky-500/5 text-xs">
-                                  <div className="font-bold text-sky-700 dark:text-sky-400 mb-1 flex items-center justify-between">
-                                    <span className="truncate">{analysisData.doc_b.filename}</span>
-                                    <span className="text-[0.65rem] font-normal text-[var(--text-muted)]">Target Quote</span>
-                                  </div>
-                                  <blockquote className="italic text-[0.7rem] text-[var(--text-secondary)] border-l-2 border-sky-500/40 pl-2">
-                                    "{selectedLink.target_quote || tgtSec?.content.slice(0, 160) || '...'}"
-                                  </blockquote>
-                                </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {analysisResult.understanding_a.key_entities_or_roles.map((role, idx) => (
+                                  <span key={idx} className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-medium border border-slate-200 dark:border-slate-700">
+                                    {role}
+                                  </span>
+                                ))}
                               </div>
-
-                              {selectedLink.recommendation && (
-                                <div className="p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 text-xs text-amber-800 dark:text-amber-300">
-                                  <span className="font-bold mr-1">Recommended Action:</span>
-                                  <span>{selectedLink.recommendation}</span>
-                                </div>
-                              )}
                             </div>
-                          );
-                        })()}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Right Column: Document B Sections */}
-                  <div className="lg:col-span-3 space-y-2">
-                    <div className="flex items-center justify-between pb-1">
-                      <span className="text-xs font-bold text-sky-600 dark:text-sky-400 truncate">
-                        {analysisData.doc_b.filename}
-                      </span>
-                      <span className="text-[0.65rem] text-[var(--text-muted)]">
-                        {analysisData.sections_b.length} sections
-                      </span>
-                    </div>
-                    {analysisData.sections_b.map((sec) => {
-                      const isHovered = hoveredSectionId === sec.id;
-                      const hasActiveLink = selectedLink?.target_section_id === sec.id || activeSectionB === sec.id;
-                      return (
-                        <div
-                          key={sec.id}
-                          onMouseEnter={() => setHoveredSectionId(sec.id)}
-                          onMouseLeave={() => setHoveredSectionId(null)}
-                          onClick={() => {
-                            setActiveSectionB(sec.id);
-                            const link = analysisData.links.find((l) => l.target_section_id === sec.id);
-                            if (link) setSelectedLink(link);
-                          }}
-                          className={clsx(
-                            'p-3 rounded-lg border text-xs cursor-pointer transition-all',
-                            hasActiveLink
-                              ? 'border-sky-500 bg-sky-500/10 shadow-xs ring-1 ring-sky-500/40'
-                              : isHovered
-                              ? 'border-[var(--accent)] bg-[var(--bg-surface-hover)]'
-                              : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--border-subtle)]/80'
                           )}
-                        >
-                          <div className="font-bold text-[var(--text-primary)] mb-1 leading-snug">
-                            {sec.heading}
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* DOC B PROFILE */}
+                  {(understandingSubTab === 'both' || understandingSubTab === 'doc_b') && (
+                    <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-indigo-500/30 shadow-xs flex flex-col gap-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
+                            Document 2 Breakdown
+                          </span>
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 mt-0.5">
+                            {analysisResult.doc_b.filename}
+                          </h3>
+                        </div>
+                        {analysisResult.understanding_b && (
+                          <span className="px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300 text-[10px] font-bold">
+                            {analysisResult.understanding_b.document_type}
+                          </span>
+                        )}
+                      </div>
+
+                      {analysisResult.understanding_b && (
+                        <>
+                          {/* Core Purpose */}
+                          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800 text-xs">
+                            <div className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 mb-1">
+                              <Target size={13} className="text-indigo-600 dark:text-indigo-400" />
+                              Primary Purpose / Goal
+                            </div>
+                            <div className="text-slate-600 dark:text-slate-300">
+                              {analysisResult.understanding_b.core_purpose}
+                            </div>
                           </div>
-                          <p className="line-clamp-2 text-[0.7rem] text-[var(--text-muted)]">
-                            {sec.content}
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
 
-              {/* View 2: Synchronized Dual Document Reader */}
-              {activeTab === 'split' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-[600px]">
-                  {/* Left Pane: Doc A */}
-                  <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] flex flex-col overflow-hidden">
-                    <div className="px-3.5 py-2.5 border-b border-[var(--border-subtle)] bg-[var(--bg-primary)] flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <FileText size={14} className="text-teal-600 dark:text-teal-400" />
-                        <span className="text-xs font-bold truncate max-w-[220px]">
-                          {analysisData.doc_a.filename}
-                        </span>
-                      </div>
-                      <span className="text-[0.65rem] text-[var(--text-muted)]">Left Document</span>
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                      {analysisData.sections_a.map((sec) => (
-                        <div
-                          key={sec.id}
-                          className={clsx(
-                            'p-3 rounded-lg border transition-all text-xs',
-                            selectedLink?.source_section_id === sec.id
-                              ? 'border-teal-500 bg-teal-500/10 ring-1 ring-teal-500/30'
-                              : 'border-[var(--border-subtle)] bg-[var(--bg-primary)]'
+                          {/* Executive Summary */}
+                          <div className="text-xs">
+                            <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 mb-1">
+                              <Info size={13} className="text-indigo-600" />
+                              What this document is about (Summary):
+                            </div>
+                            <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                              {analysisResult.understanding_b.executive_summary}
+                            </p>
+                          </div>
+
+                          {/* Key Takeaways & Rules */}
+                          <div>
+                            <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5 mb-2">
+                              <CheckCircle2 size={13} className="text-emerald-500" />
+                              Key Points & Operating Rules:
+                            </div>
+                            <div className="flex flex-col gap-1.5">
+                              {analysisResult.understanding_b.key_takeaways.map((point, idx) => (
+                                <div key={idx} className="p-2 rounded-lg bg-indigo-50/50 dark:bg-indigo-950/20 text-xs text-slate-700 dark:text-slate-300 flex items-start gap-2 border border-indigo-100 dark:border-indigo-900/30">
+                                  <span className="w-4 h-4 rounded-full bg-indigo-200 text-indigo-800 dark:bg-indigo-800 dark:text-indigo-200 text-[9px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                                    {idx + 1}
+                                  </span>
+                                  <span>{point}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Roles & Entities */}
+                          {analysisResult.understanding_b.key_entities_or_roles?.length > 0 && (
+                            <div>
+                              <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1 mb-1.5">
+                                <Users size={12} /> Key Stakeholders & Entities:
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {analysisResult.understanding_b.key_entities_or_roles.map((role, idx) => (
+                                  <span key={idx} className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-medium border border-slate-200 dark:border-slate-700">
+                                    {role}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
                           )}
-                        >
-                          <h4 className="font-bold text-[var(--text-primary)] mb-1.5 flex items-center justify-between">
-                            <span>{sec.heading}</span>
-                            {selectedLink?.source_section_id === sec.id && (
-                              <span className="text-[0.65rem] text-teal-600 dark:text-teal-400 font-bold">
-                                Active Cross-Ref
-                              </span>
-                            )}
-                          </h4>
-                          <p className="text-[var(--text-secondary)] whitespace-pre-wrap leading-relaxed">
-                            {sec.content}
-                          </p>
-                        </div>
-                      ))}
+                        </>
+                      )}
                     </div>
-                  </div>
-
-                  {/* Right Pane: Doc B */}
-                  <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] flex flex-col overflow-hidden">
-                    <div className="px-3.5 py-2.5 border-b border-[var(--border-subtle)] bg-[var(--bg-primary)] flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <FileText size={14} className="text-sky-600 dark:text-sky-400" />
-                        <span className="text-xs font-bold truncate max-w-[220px]">
-                          {analysisData.doc_b.filename}
-                        </span>
-                      </div>
-                      <span className="text-[0.65rem] text-[var(--text-muted)]">Right Document</span>
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                      {analysisData.sections_b.map((sec) => (
-                        <div
-                          key={sec.id}
-                          className={clsx(
-                            'p-3 rounded-lg border transition-all text-xs',
-                            selectedLink?.target_section_id === sec.id
-                              ? 'border-sky-500 bg-sky-500/10 ring-1 ring-sky-500/30'
-                              : 'border-[var(--border-subtle)] bg-[var(--bg-primary)]'
-                          )}
-                        >
-                          <h4 className="font-bold text-[var(--text-primary)] mb-1.5 flex items-center justify-between">
-                            <span>{sec.heading}</span>
-                            {selectedLink?.target_section_id === sec.id && (
-                              <span className="text-[0.65rem] text-sky-600 dark:text-sky-400 font-bold">
-                                Paired Target
-                              </span>
-                            )}
-                          </h4>
-                          <p className="text-[var(--text-secondary)] whitespace-pre-wrap leading-relaxed">
-                            {sec.content}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  )}
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* View 3: Executive Conflict & Discrepancy Matrix */}
-              {activeTab === 'matrix' && (
-                <div className="space-y-4">
-                  <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 shadow-sm">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-primary)] mb-3 flex items-center gap-2">
-                      <ShieldAlert size={14} className="text-rose-500" />
-                      Critical Operational Discrepancies ({analysisData.discrepancies.length})
-                    </h3>
+            {/* TAB 2: TOPIC-BY-TOPIC COMPARISON MATRIX */}
+            {activeTab === 'matrix' && (
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Clause-by-Clause & Topic Comparison Matrix ({analysisResult.comparison_matrix.length} Topics)
+                  </h3>
+                </div>
 
-                    {analysisData.discrepancies.length === 0 ? (
-                      <div className="p-6 text-center text-xs text-[var(--text-muted)]">
-                        No critical discrepancies detected. Both documents exhibit high procedural alignment.
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {analysisData.discrepancies.map((d) => (
-                          <div
-                            key={d.id}
-                            className={clsx(
-                              'p-3.5 rounded-lg border text-xs space-y-2',
-                              d.severity === 'high'
-                                ? 'border-rose-500/30 bg-rose-500/5 dark:bg-rose-500/10'
-                                : 'border-amber-500/30 bg-amber-500/5 dark:bg-amber-500/10'
-                            )}
+                <div className="flex flex-col gap-3">
+                  {analysisResult.comparison_matrix.map((row, idx) => {
+                    const isConflict = row.status === 'conflict';
+                    const isAligned = row.status === 'aligned';
+                    const isStricter = row.status === 'stricter';
+
+                    return (
+                      <div
+                        key={row.id || idx}
+                        className={`p-4 rounded-xl border bg-white dark:bg-slate-900 shadow-xs transition-all ${
+                          isConflict
+                            ? 'border-rose-300 dark:border-rose-900/60 bg-rose-50/10'
+                            : isStricter
+                            ? 'border-amber-300 dark:border-amber-900/60'
+                            : 'border-slate-200 dark:border-slate-800'
+                        }`}
+                      >
+                        {/* Topic Header & Verdict Badge */}
+                        <div className="flex items-center justify-between gap-3 mb-3 pb-2 border-b border-slate-100 dark:border-slate-800">
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-[10px] flex items-center justify-center">
+                              {idx + 1}
+                            </span>
+                            <span className="font-bold text-sm text-slate-900 dark:text-white">
+                              {row.topic}
+                            </span>
+                          </div>
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              isConflict
+                                ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300'
+                                : isAligned
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                            }`}
                           >
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold text-[var(--text-primary)] text-xs">
-                                {d.topic}
-                              </span>
-                              <span
-                                className={clsx(
-                                  'px-2 py-0.5 rounded text-[0.65rem] font-bold uppercase',
-                                  d.severity === 'high'
-                                    ? 'bg-rose-500 text-white'
-                                    : 'bg-amber-500 text-white'
-                                )}
-                              >
-                                {d.severity} Severity
-                              </span>
+                            {row.status}
+                          </span>
+                        </div>
+
+                        {/* Stance Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                          <div className="p-3 rounded-lg bg-teal-50/40 dark:bg-teal-950/20 border border-teal-200/50 dark:border-teal-900/30 text-xs">
+                            <div className="text-[10px] font-bold uppercase text-teal-800 dark:text-teal-300 mb-1">
+                              {analysisResult.doc_a.filename} Stance:
                             </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                              <div className="p-2 rounded bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
-                                <div className="font-semibold text-teal-600 dark:text-teal-400 text-[0.7rem] mb-0.5">
-                                  {analysisData.doc_a.filename}
-                                </div>
-                                <div className="text-[var(--text-secondary)] text-[0.7rem]">
-                                  {d.doc_a_clause}
-                                </div>
-                              </div>
-
-                              <div className="p-2 rounded bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
-                                <div className="font-semibold text-sky-600 dark:text-sky-400 text-[0.7rem] mb-0.5">
-                                  {analysisData.doc_b.filename}
-                                </div>
-                                <div className="text-[var(--text-secondary)] text-[0.7rem]">
-                                  {d.doc_b_clause}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="text-[0.7rem] text-[var(--text-primary)]">
-                              <span className="font-bold text-rose-600 dark:text-rose-400 mr-1">Risk Detail:</span>
-                              {d.conflict_detail}
-                            </div>
-
-                            <div className="text-[0.7rem] text-emerald-700 dark:text-emerald-400 font-medium">
-                              <span className="font-bold mr-1">Suggested Resolution:</span>
-                              {d.suggested_action}
+                            <div className="text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                              {row.doc_a_stance}
                             </div>
                           </div>
-                        ))}
+
+                          <div className="p-3 rounded-lg bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-200/50 dark:border-indigo-900/30 text-xs">
+                            <div className="text-[10px] font-bold uppercase text-indigo-800 dark:text-indigo-300 mb-1">
+                              {analysisResult.doc_b.filename} Stance:
+                            </div>
+                            <div className="text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                              {row.doc_b_stance}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Verdict Footer */}
+                        <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800 text-xs flex items-start gap-2">
+                          <span className="font-bold text-slate-800 dark:text-slate-200 shrink-0">AI Verdict:</span>
+                          <span className="text-slate-600 dark:text-slate-300">{row.verdict}</span>
+                        </div>
                       </div>
-                    )}
-                  </div>
+                    );
+                  })}
                 </div>
-              )}
-            </div>
-          )}
-        </main>
-
-        {/* Right Drawer: Cross-Doc AI Copilot */}
-        {isCopilotOpen && (
-          <aside className="w-80 sm:w-96 border-l border-[var(--border-subtle)] bg-[var(--bg-surface)] flex flex-col z-20 shrink-0 shadow-lg">
-            <div className="p-3 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-primary)]">
-              <div className="flex items-center gap-2">
-                <Sparkles size={14} className="text-amber-500" />
-                <span className="text-xs font-bold">Cross-Doc AI Auditor</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsCopilotOpen(false)}
-                className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] border-none bg-transparent cursor-pointer"
-              >
-                <X size={14} />
-              </button>
-            </div>
+            )}
 
-            {/* Conversation History */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
-              {copilotHistory.length === 0 ? (
-                <div className="text-center p-4 text-[var(--text-muted)] space-y-2">
-                  <p>Ask comparative questions contrasting both documents.</p>
-                  <div className="space-y-1 text-left text-[0.7rem]">
-                    <button
-                      type="button"
-                      onClick={() => setCopilotQuestion('What are the key policy contradictions between these documents?')}
-                      className="w-full text-left p-2 rounded bg-[var(--bg-primary)] hover:bg-[var(--bg-surface-hover)] border border-[var(--border-subtle)] cursor-pointer text-[var(--text-secondary)]"
-                    >
-                      "What are the key policy contradictions between these documents?"
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCopilotQuestion('Which document has stricter financial approval thresholds?')}
-                      className="w-full text-left p-2 rounded bg-[var(--bg-primary)] hover:bg-[var(--bg-surface-hover)] border border-[var(--border-subtle)] cursor-pointer text-[var(--text-secondary)]"
-                    >
-                      "Which document has stricter financial approval thresholds?"
-                    </button>
+            {/* TAB 3: CONFLICTS & DISCREPANCIES */}
+            {activeTab === 'conflicts' && (
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 flex items-center gap-2">
+                    <AlertTriangle size={15} />
+                    High-Priority Discrepancies & Divergences
+                  </h3>
+                  <span className="text-xs text-slate-500">
+                    {analysisResult.discrepancies.length} identified
+                  </span>
+                </div>
+
+                {analysisResult.discrepancies.length === 0 ? (
+                  <div className="p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
+                    <CheckCircle2 size={36} className="text-emerald-500 mx-auto mb-2" />
+                    <h4 className="font-bold text-slate-900 dark:text-white text-sm">Koi Critical Conflict Nahi Mila!</h4>
+                    <p className="text-xs text-slate-500 mt-1">Dono documents ke rules aur clauses me standard alignment hai.</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {analysisResult.discrepancies.map((disc, idx) => (
+                      <div
+                        key={disc.id || idx}
+                        className="p-4 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-white dark:bg-slate-900 shadow-xs flex flex-col gap-3"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-md bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-200 text-[10px] font-bold flex items-center justify-center">
+                              {idx + 1}
+                            </span>
+                            {disc.topic}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              disc.severity === 'high'
+                                ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
+                                : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
+                            }`}
+                          >
+                            {disc.severity} Risk
+                          </span>
+                        </div>
+
+                        {/* Direct Quotes Comparison */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
+                            <div className="text-[10px] font-bold uppercase text-slate-500 mb-1">
+                              {analysisResult.doc_a.filename} Statement:
+                            </div>
+                            <div className="text-slate-800 dark:text-slate-200 italic font-mono text-[11px]">
+                              "{disc.doc_a_clause}"
+                            </div>
+                          </div>
+
+                          <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
+                            <div className="text-[10px] font-bold uppercase text-slate-500 mb-1">
+                              {analysisResult.doc_b.filename} Statement:
+                            </div>
+                            <div className="text-slate-800 dark:text-slate-200 italic font-mono text-[11px]">
+                              "{disc.doc_b_clause}"
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Conflict Detail & Action */}
+                        <div className="p-3 rounded-lg bg-rose-50/60 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/30 text-xs flex flex-col gap-1.5">
+                          <div>
+                            <span className="font-bold text-rose-900 dark:text-rose-300">Operational Risk: </span>
+                            <span className="text-slate-700 dark:text-slate-300">{disc.conflict_detail}</span>
+                          </div>
+                          <div>
+                            <span className="font-bold text-teal-900 dark:text-teal-300">Suggested Action: </span>
+                            <span className="text-slate-700 dark:text-slate-300">{disc.suggested_action}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 4: SIDE-BY-SIDE READER */}
+            {activeTab === 'reader' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-[650px]">
+                {/* DOC A PANE */}
+                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden shadow-xs">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 mb-3">
+                    <span className="text-xs font-bold text-teal-700 dark:text-teal-400 truncate">
+                      Doc 1: {analysisResult.doc_a.filename}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      {analysisResult.sections_a.length} Sections
+                    </span>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+                    {analysisResult.sections_a.map((sec) => (
+                      <div
+                        key={sec.id}
+                        onClick={() => setSelectedSectionAId(sec.id)}
+                        className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                          selectedSectionAId === sec.id
+                            ? 'border-teal-500 bg-teal-50/30 dark:bg-teal-950/30 ring-1 ring-teal-500'
+                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="font-bold text-slate-900 dark:text-white mb-1">
+                          {sec.heading}
+                        </div>
+                        <div className="text-slate-600 dark:text-slate-300 whitespace-pre-wrap leading-relaxed line-clamp-6">
+                          {sec.content}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ) : (
-                copilotHistory.map((item, idx) => (
-                  <div key={idx} className="space-y-2">
-                    <div className="p-2 rounded-lg bg-[var(--accent)] text-white font-medium ml-6">
-                      {item.q}
-                    </div>
-                    <div className="p-2.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap">
-                      {item.a}
-                    </div>
-                  </div>
-                ))
-              )}
-              {isCopilotLoading && (
-                <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] p-2 animate-pulse">
-                  <RefreshCw size={12} className="animate-spin" />
-                  <span>Comparing clauses...</span>
-                </div>
-              )}
-            </div>
 
-            {/* Input Footer */}
-            <form onSubmit={handleAskCopilot} className="p-3 border-t border-[var(--border-subtle)] bg-[var(--bg-primary)]">
-              <div className="flex items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1.5 focus-within:border-[var(--accent)]">
-                <input
-                  type="text"
-                  placeholder="Ask comparative question..."
-                  value={copilotQuestion}
-                  onChange={(e) => setCopilotQuestion(e.target.value)}
-                  disabled={isCopilotLoading}
-                  className="flex-1 bg-transparent text-xs text-[var(--text-primary)] focus:outline-none placeholder-[var(--text-muted)]"
-                />
-                <button
-                  type="submit"
-                  disabled={!copilotQuestion.trim() || isCopilotLoading}
-                  className="text-[var(--accent)] hover:text-[var(--accent-hover)] disabled:opacity-40 border-none bg-transparent cursor-pointer p-0.5"
+                {/* DOC B PANE */}
+                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden shadow-xs">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 mb-3">
+                    <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400 truncate">
+                      Doc 2: {analysisResult.doc_b.filename}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      {analysisResult.sections_b.length} Sections
+                    </span>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+                    {analysisResult.sections_b.map((sec) => (
+                      <div
+                        key={sec.id}
+                        onClick={() => setSelectedSectionBId(sec.id)}
+                        className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                          selectedSectionBId === sec.id
+                            ? 'border-indigo-500 bg-indigo-50/30 dark:bg-indigo-950/30 ring-1 ring-indigo-500'
+                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="font-bold text-slate-900 dark:text-white mb-1">
+                          {sec.heading}
+                        </div>
+                        <div className="text-slate-600 dark:text-slate-300 whitespace-pre-wrap leading-relaxed line-clamp-6">
+                          {sec.content}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 5: ASK AI COPILOT */}
+            {activeTab === 'copilot' && (
+              <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col h-[600px]">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 mb-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <Sparkles size={16} className="text-indigo-600" />
+                      Cross-Document Intelligence Copilot
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Query both documents concurrently to resolve ambiguities and verify compliance.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Quick Prompts Chips */}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <button
+                    onClick={() => handleSendCopilotQuery(`Explain ${analysisResult.doc_a.filename} in simple words`)}
+                    className="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-medium"
+                  >
+                    💡 Explain Doc 1 in simple words
+                  </button>
+                  <button
+                    onClick={() => handleSendCopilotQuery(`Explain ${analysisResult.doc_b.filename} in simple words`)}
+                    className="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-medium"
+                  >
+                    💡 Explain Doc 2 in simple words
+                  </button>
+                  <button
+                    onClick={() => handleSendCopilotQuery('What are the top 3 contradictory rules between both documents?')}
+                    className="px-2.5 py-1 rounded-full bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 text-[11px] font-medium border border-rose-200 dark:border-rose-900"
+                  >
+                    ⚠️ Top 3 contradictory rules
+                  </button>
+                  <button
+                    onClick={() => handleSendCopilotQuery('Which document is stricter on authorization limits and approvals?')}
+                    className="px-2.5 py-1 rounded-full bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 text-[11px] font-medium border border-teal-200 dark:border-teal-900"
+                  >
+                    ⚖️ Which document is stricter?
+                  </button>
+                </div>
+
+                {/* Chat History */}
+                <div className="flex-1 overflow-y-auto space-y-3 mb-4 pr-2">
+                  {copilotChat.map((msg, idx) => (
+                    <div
+                      key={idx}
+                      className={`p-3.5 rounded-xl text-xs max-w-[85%] leading-relaxed ${
+                        msg.role === 'user'
+                          ? 'ml-auto bg-teal-600 text-white font-medium rounded-br-xs'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-xs border border-slate-200/60 dark:border-slate-700'
+                      }`}
+                    >
+                      <div className="whitespace-pre-wrap">{msg.text}</div>
+                      {msg.verdict && (
+                        <div className="mt-2 pt-2 border-t border-slate-300 dark:border-slate-700 text-[10px] font-semibold text-teal-700 dark:text-teal-300">
+                          Verdict: {msg.verdict}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {isCopilotLoading && (
+                    <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs text-slate-500 flex items-center gap-2 w-fit">
+                      <Loader2 size={14} className="animate-spin text-teal-600" />
+                      Synthesizing comparative answer...
+                    </div>
+                  )}
+                </div>
+
+                {/* Input Field */}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSendCopilotQuery();
+                  }}
+                  className="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-800"
                 >
-                  <Send size={13} />
-                </button>
+                  <input
+                    type="text"
+                    value={copilotQuery}
+                    onChange={(e) => setCopilotQuery(e.target.value)}
+                    placeholder="Ask anything comparing both documents..."
+                    className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isCopilotLoading || !copilotQuery.trim()}
+                    className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-xs font-bold transition-colors flex items-center gap-1.5"
+                  >
+                    <Send size={13} />
+                    <span>Ask</span>
+                  </button>
+                </form>
               </div>
-            </form>
-          </aside>
+            )}
+          </section>
         )}
-      </div>
+      </main>
     </div>
   );
 }

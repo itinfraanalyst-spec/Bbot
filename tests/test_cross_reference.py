@@ -5,6 +5,8 @@ from src.cross_reference.schemas import (
     CrossReferenceLink,
     DiscrepancyItem,
     CrossDocSummary,
+    DocumentUnderstanding,
+    TopicComparisonItem,
 )
 from src.cross_reference.service import CrossReferenceService
 
@@ -36,6 +38,43 @@ Accounts must be reconciled on a 30-day cadence with external reporting delivera
         self.assertGreaterEqual(len(sections), 3)
         self.assertEqual(sections[0].doc_title, "Financial Controls SOP")
         self.assertIn("Governance", sections[0].heading)
+
+    def test_extract_file_content_various_types(self):
+        # Plain text
+        txt_content = b"Header line\nThis is a sample document for testing extraction."
+        text, pages = self.service.extract_file_content("test.txt", txt_content)
+        self.assertIn("sample document", text)
+        self.assertGreaterEqual(pages, 1)
+
+        # JSON file
+        json_content = b'{"policy_name": "Information Security", "version": 2.1}'
+        text, pages = self.service.extract_file_content("policy.json", json_content)
+        self.assertIn("Information Security", text)
+
+        # CSV file
+        csv_content = b"Role,Max_Limit,Approval\nManager,5000,Single\nDirector,25000,Dual"
+        text, pages = self.service.extract_file_content("matrix.csv", csv_content)
+        self.assertIn("Manager", text)
+        self.assertIn("Director", text)
+
+    def test_document_understanding_generation(self):
+        sample_text = """
+# Corporate Expense Policy
+This document establishes authorization limits for all staff.
+Manager approval is required for all travel expenses over $500.
+Director approval is mandatory for any software purchase.
+Finance department conducts monthly audits.
+"""
+        understanding = self.service.generate_document_understanding(
+            doc_id="doc-test",
+            filename="Corporate Expense Policy.docx",
+            text=sample_text,
+            page_count=2,
+        )
+        self.assertIsInstance(understanding, DocumentUnderstanding)
+        self.assertEqual(understanding.filename, "Corporate Expense Policy.docx")
+        self.assertGreaterEqual(understanding.word_count, 10)
+        self.assertGreaterEqual(len(understanding.key_takeaways), 1)
 
     def test_cross_reference_response_model(self):
         sec_a = DocumentSection(
@@ -80,6 +119,13 @@ Accounts must be reconciled on a 30-day cadence with external reporting delivera
             key_risks=["Audit non-compliance"],
             key_recommendations=["Standardize limits"],
         )
+        topic_comp = TopicComparisonItem(
+            topic="Approval Thresholds",
+            doc_a_stance="Dual signoff > $5,000",
+            doc_b_stance="Single signoff <= $10,000",
+            status="conflict",
+            verdict="Direct policy contradiction between documents.",
+        )
         resp = CrossReferenceResponse(
             doc_a={"id": "doc-1", "filename": "SOP 1", "size": 1000, "page_count": 2},
             doc_b={"id": "doc-2", "filename": "Policy 2", "size": 1500, "page_count": 3},
@@ -87,11 +133,13 @@ Accounts must be reconciled on a 30-day cadence with external reporting delivera
             sections_b=[sec_b],
             links=[link],
             discrepancies=[disc],
+            comparison_matrix=[topic_comp],
             summary=summary,
         )
         self.assertEqual(resp.summary.alignment_score, 75)
         self.assertEqual(len(resp.links), 1)
         self.assertEqual(resp.links[0].relation, "contradiction")
+        self.assertEqual(len(resp.comparison_matrix), 1)
 
 
 if __name__ == "__main__":
