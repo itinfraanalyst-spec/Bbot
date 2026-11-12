@@ -330,7 +330,9 @@ function MessageBubbleComponent({ message, botName = 'bbot', onRetry, onDismiss,
           )}
 
           {isError ? (
-            <div className="font-medium">{message.content || "Couldn't generate a response"}</div>
+            <div className="font-medium">
+              {message.content?.replace(/Groq model token limit reached momentarily\.? Please wait a few seconds and retry\.?/gi, "The assistant is momentarily processing high volume. Please try again.") || "Couldn't generate a response"}
+            </div>
           ) : isEditing ? (
             <div className="flex flex-col gap-2 min-w-[250px]">
               <textarea

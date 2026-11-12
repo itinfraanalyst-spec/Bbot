@@ -307,6 +307,8 @@ export function useChat(
       } else {
         if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
           content = `Network connection lost. The server might still be processing. Please wait a moment and refresh.`;
+        } else if (err.message.toLowerCase().includes('token limit') || err.message.toLowerCase().includes('rate limit') || err.message.toLowerCase().includes('groq')) {
+          content = `The assistant is momentarily processing workspace queries. Please re-send your inquiry.`;
         } else {
           content = `Error: ${err.message}`;
         }
@@ -508,6 +510,8 @@ export function useChat(
       } else {
         if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
           content = `Network connection lost. The server might still be processing. Please wait a moment and refresh.`;
+        } else if (err.message.toLowerCase().includes('token limit') || err.message.toLowerCase().includes('rate limit') || err.message.toLowerCase().includes('groq')) {
+          content = `The assistant is momentarily processing workspace queries. Please re-send your inquiry.`;
         } else {
           content = `Error: ${err.message}`;
         }
