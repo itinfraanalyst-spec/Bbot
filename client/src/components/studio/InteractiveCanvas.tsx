@@ -51,6 +51,8 @@ import {
   MoveHorizontal,
   MoveVertical,
   Check,
+  Image as ImageIcon,
+  Upload,
 } from 'lucide-react';
 import { MapDatasetModal } from './MapDatasetModal';
 import type {
@@ -3627,8 +3629,6 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
             const w = node.width || (shape === 'pill' ? 210 : shape === 'heart' ? 220 : 230);
             const h = node.height || (shape === 'pill' ? 56 : shape === 'heart' ? 180 : 110);
 
-            const IconComponent = node.icon && SEMANTIC_ICONS[node.icon] ? SEMANTIC_ICONS[node.icon] : Layers;
-
             const isSvgContained = ['diamond', 'heart'].includes(shape);
 
             return (
@@ -3797,6 +3797,44 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                         title="Link the 2 selected boxes immediately"
                       >
                         <Zap size={10} /> Link 2 Boxes
+                      </button>
+                    )}
+
+                    {/* Upload Image/Logo Quick Button */}
+                    <label
+                      className="p-1 rounded text-[var(--text-secondary)] hover:text-cyan-400 hover:bg-[var(--bg-surface-hover)] transition-colors cursor-pointer"
+                      title={node.imageUrl ? 'Change Uploaded Image/Logo' : 'Upload Image/Logo to Box'}
+                    >
+                      <ImageIcon size={11} className={node.imageUrl ? 'text-cyan-400' : ''} />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              const base64 = event.target?.result as string;
+                              if (base64) {
+                                handleUpdateNode(node.id, { imageUrl: base64 });
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+
+                    {node.imageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateNode(node.id, { imageUrl: undefined })}
+                        className="p-1 rounded text-rose-400 hover:text-rose-300 hover:bg-rose-500/20 transition-colors cursor-pointer"
+                        title="Remove Image"
+                      >
+                        <X size={11} />
                       </button>
                     )}
 
@@ -4008,13 +4046,14 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                       />
                       <div className={`p-3 flex-1 flex flex-col justify-between min-h-0 ${textAlignClass}`}>
                         <div className="flex items-start justify-between gap-1.5 w-full">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <div
-                              className="p-1 rounded-md shrink-0 flex items-center justify-center text-white"
-                              style={{ backgroundColor: borderColor }}
-                            >
-                              <IconComponent size={13} />
-                            </div>
+                          <div className="flex items-center gap-2 min-w-0">
+                            {node.imageUrl && (
+                              <img
+                                src={node.imageUrl}
+                                alt=""
+                                className="w-6 h-6 sm:w-7 sm:h-7 rounded-md object-contain shrink-0 bg-black/20 p-0.5 border border-white/20 shadow-xs"
+                              />
+                            )}
                             <span
                               className={`${fontWeightClass} ${fontSizeClass} truncate leading-tight`}
                               style={{ color: textColor }}
@@ -4052,13 +4091,14 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                   {shape === 'rectangle' && (
                     <div className={`p-3 flex flex-col justify-between h-full border-t-2 ${textAlignClass}`} style={{ borderTopColor: borderColor }}>
                       <div className="flex items-start justify-between gap-1.5 w-full">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <div
-                            className="p-1 rounded-none shrink-0 flex items-center justify-center text-white"
-                            style={{ backgroundColor: borderColor }}
-                          >
-                            <IconComponent size={12} />
-                          </div>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {node.imageUrl && (
+                            <img
+                              src={node.imageUrl}
+                              alt=""
+                              className="w-6 h-6 rounded-none object-contain shrink-0 bg-black/20 p-0.5 border border-white/20 shadow-xs"
+                            />
+                          )}
                           <span
                             className={`${fontWeightClass} ${fontSizeClass} tracking-tight truncate leading-tight`}
                             style={{ color: textColor }}
@@ -4101,9 +4141,13 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                         />
                       </svg>
                       <div className="relative z-10 flex flex-col items-center justify-center max-w-[70%]">
-                        <div className="p-1 rounded-full text-white mb-1 shadow-sm shrink-0" style={{ backgroundColor: borderColor }}>
-                          <IconComponent size={12} />
-                        </div>
+                        {node.imageUrl && (
+                          <img
+                            src={node.imageUrl}
+                            alt=""
+                            className="w-6 h-6 rounded-full object-contain mb-1 shadow-sm shrink-0 bg-black/20 p-0.5 border border-white/20"
+                          />
+                        )}
                         <span
                           className={`${fontWeightClass} ${fontSizeClass} leading-tight break-words max-w-full`}
                           style={{ color: textColor }}
@@ -4137,9 +4181,13 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                         />
                       </svg>
                       <div className="relative z-10 flex flex-col items-center justify-center max-w-[72%] pt-1">
-                        <div className="p-1 rounded-full text-white mb-1 shadow-sm shrink-0" style={{ backgroundColor: borderColor }}>
-                          <IconComponent size={12} />
-                        </div>
+                        {node.imageUrl && (
+                          <img
+                            src={node.imageUrl}
+                            alt=""
+                            className="w-6 h-6 rounded-full object-contain mb-1 shadow-sm shrink-0 bg-black/20 p-0.5 border border-white/20"
+                          />
+                        )}
                         <span
                           className={`${fontWeightClass} ${fontSizeClass} leading-tight break-words max-w-full`}
                           style={{ color: textColor }}
@@ -4183,13 +4231,14 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                       />
                       {/* Front Face Content */}
                       <div className="pt-2 flex items-start justify-between gap-1.5 w-full">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <div
-                            className="p-1 rounded-md shrink-0 flex items-center justify-center text-white shadow-sm"
-                            style={{ backgroundColor: borderColor }}
-                          >
-                            <IconComponent size={13} />
-                          </div>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {node.imageUrl && (
+                            <img
+                              src={node.imageUrl}
+                              alt=""
+                              className="w-6 h-6 rounded-md object-contain shrink-0 bg-black/20 p-0.5 border border-white/20 shadow-xs"
+                            />
+                          )}
                           <span
                             className={`${fontWeightClass} ${fontSizeClass} truncate`} style={{ color: textColor }}
                           >
@@ -4217,12 +4266,13 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                   {shape === 'pill' && (
                     <div className="px-4 py-2 flex items-center justify-between gap-2.5 h-full">
                       <div className="flex items-center gap-2 min-w-0">
-                        <div
-                          className="p-1 rounded-full shrink-0 flex items-center justify-center text-white"
-                          style={{ backgroundColor: borderColor }}
-                        >
-                          <IconComponent size={13} />
-                        </div>
+                        {node.imageUrl && (
+                          <img
+                            src={node.imageUrl}
+                            alt=""
+                            className="w-6 h-6 rounded-full object-contain shrink-0 bg-black/20 p-0.5 border border-white/20 shadow-xs"
+                          />
+                        )}
                         <span className={`${fontWeightClass} ${fontSizeClass} truncate`} style={{ color: textColor }}>
                           {node.label}
                         </span>
@@ -4290,7 +4340,9 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                         </div>
                         <div className="flex items-center justify-between text-[0.58rem] text-neutral-500 pt-1 border-t border-neutral-800">
                           <span>status: 200 OK</span>
-                          <IconComponent size={11} className="text-emerald-400" />
+                          {node.imageUrl && (
+                            <img src={node.imageUrl} alt="" className="w-4 h-4 rounded object-contain shrink-0" />
+                          )}
                         </div>
                       </div>
                     </div>
@@ -4300,12 +4352,17 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                   {shape === 'minimal' && (
                     <div className={`p-3 flex flex-col justify-between h-full ${textAlignClass}`}>
                       <div className="flex items-start justify-between gap-1 w-full">
-                        <span
-                          className={`${fontWeightClass} ${fontSizeClass} tracking-tight truncate leading-tight`}
-                          style={{ color: textColor }}
-                        >
-                          {node.label}
-                        </span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {node.imageUrl && (
+                            <img src={node.imageUrl} alt="" className="w-5 h-5 rounded object-contain shrink-0 bg-black/20 p-0.5 border border-white/20" />
+                          )}
+                          <span
+                            className={`${fontWeightClass} ${fontSizeClass} tracking-tight truncate leading-tight`}
+                            style={{ color: textColor }}
+                          >
+                            {node.label}
+                          </span>
+                        </div>
                         {node.badge && (
                           <span className="text-[0.6rem] font-mono opacity-60">[{node.badge}]</span>
                         )}
@@ -4325,7 +4382,10 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                         className="h-3 w-full rounded-full border border-black/20 shrink-0"
                         style={{ backgroundColor: borderColor }}
                       />
-                      <div className="py-1 text-center w-full">
+                      <div className="py-1 text-center w-full flex flex-col items-center">
+                        {node.imageUrl && (
+                          <img src={node.imageUrl} alt="" className="w-6 h-6 rounded-md object-contain mb-1 shrink-0 bg-black/20 p-0.5 border border-white/20" />
+                        )}
                         <span className={`${fontWeightClass} ${fontSizeClass} block truncate`} style={{ color: textColor }}>
                           {node.label}
                         </span>
@@ -4344,8 +4404,10 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                   {shape === 'glass' && (
                     <div className={`p-3 flex flex-col justify-between h-full ${textAlignClass}`}>
                       <div className="flex items-center justify-between gap-1 w-full">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <IconComponent size={13} style={{ color: borderColor }} />
+                        <div className="flex items-center gap-2 min-w-0">
+                          {node.imageUrl && (
+                            <img src={node.imageUrl} alt="" className="w-6 h-6 rounded-md object-contain shrink-0 bg-black/20 p-0.5 border border-white/20 shadow-xs" />
+                          )}
                           <span className={`${fontWeightClass} ${fontSizeClass} truncate`} style={{ color: textColor }}>
                             {node.label}
                           </span>
@@ -4365,9 +4427,9 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                   {/* Shape 12: Hexagon Core Hub */}
                   {shape === 'hexagon' && (
                     <div className="p-2.5 flex flex-col items-center justify-center text-center h-full">
-                      <div className="p-1 rounded-lg text-white mb-1" style={{ backgroundColor: borderColor }}>
-                        <IconComponent size={12} />
-                      </div>
+                      {node.imageUrl && (
+                        <img src={node.imageUrl} alt="" className="w-6 h-6 rounded-md object-contain mb-1 shrink-0 bg-black/20 p-0.5 border border-white/20 shadow-xs" />
+                      )}
                       <span className={`${fontWeightClass} ${fontSizeClass} truncate w-full`} style={{ color: textColor }}>
                         {node.label}
                       </span>
@@ -5307,26 +5369,79 @@ export const InteractiveCanvas = forwardRef<InteractiveCanvasRef, InteractiveCan
                 </div>
               </div>
 
-              {/* Badge & Icon */}
+              {/* Custom Image / Logo Upload */}
+              <div className="flex flex-col gap-1.5 p-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)]">
+                <div className="flex items-center justify-between">
+                  <span className="text-[0.65rem] font-bold text-[var(--text-muted)] uppercase tracking-wider flex items-center gap-1.5">
+                    <ImageIcon size={12} className="text-cyan-400" /> Box Image / Logo
+                  </span>
+                  {selectedNode.imageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateNode(selectedNode.id, { imageUrl: undefined })}
+                      className="text-[0.62rem] text-rose-400 hover:text-rose-300 transition-colors cursor-pointer flex items-center gap-0.5"
+                    >
+                      <Trash2 size={10} /> Remove
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {selectedNode.imageUrl ? (
+                    <div className="w-10 h-10 rounded-lg border border-cyan-400/40 bg-black/30 p-1 flex items-center justify-center shrink-0 overflow-hidden shadow-xs">
+                      <img src={selectedNode.imageUrl} alt="Uploaded logo" className="max-w-full max-h-full object-contain" />
+                    </div>
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--bg-surface)] flex items-center justify-center shrink-0 text-[var(--text-muted)]">
+                      <ImageIcon size={16} className="opacity-40" />
+                    </div>
+                  )}
+
+                  <div className="flex-1 flex flex-col gap-1">
+                    <label className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 text-xs font-bold transition-all cursor-pointer shadow-xs">
+                      <Upload size={12} />
+                      <span>{selectedNode.imageUrl ? 'Change Image' : 'Upload Image'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              const base64 = event.target?.result as string;
+                              if (base64) {
+                                handleUpdateNode(selectedNode.id, { imageUrl: base64 });
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+
+                    <input
+                      type="text"
+                      value={selectedNode.imageUrl && !selectedNode.imageUrl.startsWith('data:') ? selectedNode.imageUrl : ''}
+                      onChange={(e) => handleUpdateNode(selectedNode.id, { imageUrl: e.target.value || undefined })}
+                      placeholder="Or paste image URL (https://...)"
+                      className="w-full px-2 py-1 rounded border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[0.65rem] text-[var(--text-primary)] font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Badge */}
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={selectedNode.badge || ''}
                   onChange={(e) => handleUpdateNode(selectedNode.id, { badge: e.target.value })}
-                  placeholder="Badge (e.g. 01, P0)"
-                  className="flex-1 px-2.5 py-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)] text-[0.7rem] text-[var(--text-primary)] font-mono"
+                  placeholder="Badge (e.g. 01, P0, Optional)"
+                  className="w-full px-2.5 py-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)] text-[0.7rem] text-[var(--text-primary)] font-mono"
                 />
-                <select
-                  value={selectedNode.icon || 'Layers'}
-                  onChange={(e) => handleUpdateNode(selectedNode.id, { icon: e.target.value })}
-                  className="w-32 px-2 py-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)] text-[0.7rem] text-[var(--text-primary)]"
-                >
-                  {Object.keys(SEMANTIC_ICONS).map((iconKey) => (
-                    <option key={iconKey} value={iconKey}>
-                      {iconKey}
-                    </option>
-                  ))}
-                </select>
               </div>
             </div>
 

@@ -60,6 +60,7 @@ export interface NodeSpec {
   order?: number;
   icon?: string;
   badge?: string;
+  imageUrl?: string;
   // Freeform canvas coordinate & dimension overrides
   x?: number;
   y?: number;

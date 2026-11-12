@@ -141,6 +141,7 @@ class NodeSpec(BaseModel):
     order: Optional[int] = Field(None, description="Sequential ordering if applicable")
     icon: Optional[str] = Field(None, description="Semantic icon name e.g. ShieldCheck, Database, UserCheck, Ticket, Zap")
     badge: Optional[str] = Field(None, description="Step number or metric badge e.g. '01', 'P1', '99.9%'")
+    imageUrl: Optional[str] = Field(None, description="Optional custom image/logo URL or base64 data")
     x: Optional[float] = Field(None, description="Canvas X coordinate")
     y: Optional[float] = Field(None, description="Canvas Y coordinate")
     width: Optional[float] = Field(None, description="Canvas node width")
